@@ -60,7 +60,8 @@ import {
   set, 
   update,
   remove,
-  push
+  push,
+  onDisconnect // IMPORTANTE: Para detectar desconexiones
 } from 'firebase/database';
 
 // --- DATOS INICIALES ---
@@ -70,7 +71,7 @@ const INITIAL_DATA = [
 ];
 
 // --- CONFIGURACIÓN DE SEGURIDAD ---
-const ADMIN_PIN = "2442"; // <--- CAMBIA ESTA CONTRASEÑA
+const ADMIN_PIN = "2442"; 
 
 // --- FIREBASE SETUP ---
 const firebaseConfig = {
@@ -93,6 +94,7 @@ const DB_PATH = `artifacts/${appId}/public/data/inventory`;
 const HISTORY_PATH = `artifacts/${appId}/public/data/history`;
 const SETTINGS_PATH = `artifacts/${appId}/public/data/settings`;
 const SUPPLIERS_PATH = `artifacts/${appId}/public/data/suppliers`; 
+const PRESENCE_PATH = `artifacts/${appId}/public/data/presence`; // Nueva ruta para usuarios conectados
 
 // --- COMPONENTES UI ---
 const Card = ({ title, value, icon: Icon, trend, color = "blue", subtitle }) => (
@@ -432,6 +434,7 @@ export default function InventoryDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [logoUrl, setLogoUrl] = useState("https://cdn-icons-png.flaticon.com/512/2897/2897785.png");
+  const [onlineUsers, setOnlineUsers] = useState(1); // Nuevo estado para usuarios conectados
   
   // ESTADOS PRINCIPALES
   const [isAdmin, setIsAdmin] = useState(false); // ESTADO DE PERMISOS
@@ -471,7 +474,7 @@ export default function InventoryDashboard() {
     return () => unsubscribe();
   }, [authError]);
 
-  // --- 2. DATA SYNC ---
+  // --- 2. DATA SYNC Y PRESENCIA ---
   useEffect(() => {
     if (!user) return;
     
@@ -509,11 +512,42 @@ export default function InventoryDashboard() {
       if (snapshot.exists()) setLogoUrl(snapshot.val());
     });
 
+    // e) PRESENCIA EN TIEMPO REAL
+    // Referencia especial de Firebase que detecta conexión
+    const connectedRef = ref(db, ".info/connected");
+    const presenceRef = ref(db, `artifacts/${appId}/public/data/presence`);
+    
+    const unsubscribeConnected = onValue(connectedRef, (snap) => {
+      if (snap.val() === true) {
+        // Al conectar, registrar este usuario
+        const myPresenceRef = push(presenceRef); // Crea un ID único para esta sesión
+        // Cuando se desconecte (cierre pestaña/internet), eliminar este registro
+        import('firebase/database').then(({ onDisconnect }) => {
+           onDisconnect(myPresenceRef).remove();
+           set(myPresenceRef, {
+             user: user.uid,
+             connectedAt: Date.now()
+           });
+        });
+      }
+    });
+
+    // Escuchar cuántos registros de presencia hay
+    const unsubscribePresenceCount = onValue(presenceRef, (snap) => {
+      if (snap.exists()) {
+        setOnlineUsers(Object.keys(snap.val()).length);
+      } else {
+        setOnlineUsers(1);
+      }
+    });
+
     return () => {
       unsubscribeInv();
       unsubscribeHist();
       unsubscribeSup();
       unsubscribeLogo();
+      unsubscribeConnected();
+      unsubscribePresenceCount();
     };
   }, [user]);
 
@@ -668,7 +702,17 @@ export default function InventoryDashboard() {
             <h2 className="text-2xl font-bold text-slate-800">
               {activeTab === 'dashboard' ? 'Visión General' : activeTab === 'inventory' ? 'Inventario' : activeTab === 'suppliers' ? 'Proveedores' : 'Historial'}
             </h2>
-            <div className="flex items-center gap-2 text-slate-500 text-sm"><Wifi size={14} className="text-emerald-500" /><span>En línea • {isAdmin ? 'Edición Habilitada' : 'Solo Lectura'}</span></div>
+            <div className="flex items-center gap-4 text-sm font-medium text-slate-500 bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
+               <div className="flex items-center gap-2">
+                 <Wifi size={16} className="text-emerald-500" />
+                 <span>En línea</span>
+               </div>
+               <div className="h-4 w-px bg-slate-300"></div>
+               <div className="flex items-center gap-2" title="Usuarios conectados en tiempo real">
+                 <Users size={16} className="text-blue-500" />
+                 <span className="text-blue-700">{onlineUsers} Conectados</span>
+               </div>
+            </div>
           </div>
         </header>
 
@@ -726,8 +770,10 @@ export default function InventoryDashboard() {
                     <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b">Código</th>
                     <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b">Material</th>
                     <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b hidden md:table-cell">Categoría</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-right">Costo+IVA</th>
+                    <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-right">Precio Unit.</th>
+                    <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-right text-emerald-600">Costo + IVA</th>
                     <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-right">Stock</th>
+                    <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-center">Estado</th>
                     <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-center">Acciones</th>
                   </tr>
                 </thead>
@@ -737,8 +783,12 @@ export default function InventoryDashboard() {
                       <td className="p-4 text-sm font-mono text-slate-600">{item.codigo}</td>
                       <td className="p-4"><p className="text-sm font-semibold">{item.material}</p></td>
                       <td className="p-4 text-sm hidden md:table-cell"><span className="px-2 py-1 rounded bg-slate-100 text-xs font-medium">{item.categoria}</span></td>
+                      <td className="p-4 text-sm text-right text-slate-500">${(item.costo || 0).toFixed(2)}</td>
                       <td className="p-4 text-sm text-right font-bold text-emerald-600">${((item.costo||0)*(item.aplicaIVA?1.15:1)).toFixed(2)}</td>
                       <td className={`p-4 text-lg font-bold text-right ${item.stock<0?'text-red-600':'text-slate-800'}`}>{item.stock}</td>
+                      <td className="p-4 text-center">
+                        {item.stock <= 0 ? <Badge type="danger">Agotado</Badge> : item.stock <= 5 ? <Badge type="warning">Bajo</Badge> : <Badge type="success">En Stock</Badge>}
+                      </td>
                       <td className="p-4 text-center">
                         {isAdmin ? (
                           <div className="flex justify-center gap-2">
