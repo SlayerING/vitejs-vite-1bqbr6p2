@@ -38,8 +38,7 @@ import {
   CheckCircle, 
   Info, 
   AlertCircle,
-  Building2,
-  ListFilter // NUEVO ICONO
+  ListFilter 
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -322,19 +321,7 @@ const MovementModal = ({ isOpen, onClose, item, onSave }) => {
             <input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-lg font-bold text-center" autoFocus />
           </div>
 
-          {type === 'exit' ? (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Destino / Centro de Costo</label>
-              <select className="w-full p-2 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" value={destination} onChange={(e) => setDestination(e.target.value)}>
-                {COST_CENTERS.map(center => <option key={center} value={center}>{center}</option>)}
-              </select>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Origen / Proveedor (Opcional)</label>
-              <input type="text" className="w-full p-2 border border-slate-300 rounded-lg" placeholder="Ej. Ferretería Central" value={destination} onChange={(e) => setDestination(e.target.value)} />
-            </div>
-          )}
+          {/* NO MOSTRAR SELECTOR DE DESTINO (REVERTIDO) */}
 
           {type === 'exit' && (item.stock - amount < 0) && (
             <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-start gap-2">
@@ -421,7 +408,7 @@ export default function InventoryDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('Todas');
-  const [statusFilter, setStatusFilter] = useState('all'); // NUEVO ESTADO PARA FILTRO
+  const [statusFilter, setStatusFilter] = useState('all'); 
   const [logoUrl, setLogoUrl] = useState("https://cdn-icons-png.flaticon.com/512/2897/2897785.png");
   const [onlineUsersList, setOnlineUsersList] = useState([]); 
   const [toasts, setToasts] = useState([]); 
@@ -573,20 +560,15 @@ export default function InventoryDashboard() {
   const categories = ['Todas', ...new Set(inventoryData.map(item => item.categoria).filter(Boolean))];
   const rawCategories = [...new Set(inventoryData.map(item => item.categoria).filter(Boolean))].sort();
   const totalValue = inventoryData.reduce((acc, item) => acc + (item.stock * parseFloat(item.costo || 0) * (item.aplicaIVA ? 1.15 : 1)), 0);
-  const costByDept = useMemo(() => {
-    return historyData.filter(h => h.tipo === 'Salida' && h.destino).reduce((acc, curr) => {
-      const item = inventoryData.find(i => i.codigo === curr.codigo);
-      const cost = item ? (item.costo || 0) * (item.aplicaIVA ? 1.15 : 1) : 0;
-      acc[curr.destino] = (acc[curr.destino] || 0) + (curr.cantidad * cost);
-      return acc;
-    }, {});
-  }, [historyData, inventoryData]);
 
+  // --- RENDER ---
   if (authError === 'AUTH_CONFIG_MISSING') return <div className="p-10 text-center text-red-600 font-bold">Falta configurar Auth Anónimo en Firebase</div>;
   if (loading) return <div className="h-screen flex items-center justify-center bg-emerald-900 text-white">Cargando...</div>;
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-800">
+      
+      {/* SIDEBAR */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-emerald-900 text-white transition-all duration-300 flex flex-col fixed h-full z-20 md:relative shadow-xl`}>
         <div className="p-6 flex flex-col justify-center h-20">
           <div className="flex items-center justify-between">
@@ -603,6 +585,7 @@ export default function InventoryDashboard() {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1 rounded hover:bg-emerald-800 text-emerald-100 self-center">{sidebarOpen ? <X size={20} /> : <Menu size={20} />}</button>
           </div>
         </div>
+        
         <nav className="flex-1 px-4 py-6 space-y-2">
           {[{id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'}, {id: 'inventory', icon: Package, label: 'Inventario'}, {id: 'suppliers', icon: Truck, label: 'Proveedores'}, {id: 'history', icon: History, label: 'Historial'}].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${activeTab === item.id ? 'bg-emerald-700 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-800'}`}>
@@ -610,6 +593,8 @@ export default function InventoryDashboard() {
             </button>
           ))}
         </nav>
+
+        {/* STATUS BAR & LOCK */}
         <div className="p-4 border-t border-emerald-800 space-y-3">
           {sidebarOpen && (
             <div className="flex items-center justify-between text-emerald-300 text-xs">
@@ -630,6 +615,7 @@ export default function InventoryDashboard() {
         </div>
       </aside>
 
+      {/* MAIN */}
       <main className="flex-1 overflow-y-auto p-4 md:p-8">
         <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
@@ -651,19 +637,21 @@ export default function InventoryDashboard() {
               <Card title="Agotados" value={inventoryData.filter(i => i.stock <= 0).length} icon={AlertTriangle} color="red" trend="down" />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-80">
-                <h3 className="text-lg font-bold text-slate-800 mb-6">Gastos por Centro (Histórico)</h3>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={Object.entries(costByDept).map(([name, value]) => ({name, value})).sort((a,b)=>b.value-a.value).slice(0,5)} layout="vertical" margin={{ left: 40 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                    <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
-                    <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
-                    <Bar dataKey="value" fill="#8B5CF6" radius={[0, 4, 4, 0]} barSize={20} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-96 flex flex-col">
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Stock por Categoría</h3>
+                <div className="flex-1 w-full min-h-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={Object.entries(inventoryData.reduce((acc, i) => { const c = i.categoria.includes('CHUMAZERAS')?'CHUMAZERAS':i.categoria; acc[c] = (acc[c]||0)+i.stock; return acc; }, {})).map(([name, value]) => ({name, value})).sort((a,b)=>b.value-a.value).slice(0,7)} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                      <XAxis type="number" hide />
+                      <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
+                      <Tooltip />
+                      <Bar dataKey="value" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-80 overflow-y-auto">
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-96 overflow-y-auto">
                 <h3 className="text-lg font-bold text-slate-800 mb-4">Stock Bajo</h3>
                 {inventoryData.filter(i => i.stock <= 5).sort((a,b)=>a.stock-b.stock).map((item, idx) => (
                   <div key={idx} className="flex justify-between items-center p-3 hover:bg-slate-50 border-b last:border-0">
@@ -751,7 +739,7 @@ export default function InventoryDashboard() {
             <div className="overflow-auto flex-1">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-50 sticky top-0 z-10">
-                  <tr><th className="p-4 border-b">Fecha</th><th className="p-4 border-b">Material</th><th className="p-4 border-b text-center">Tipo</th><th className="p-4 border-b text-right">Cant.</th><th className="p-4 border-b">Destino / Razón</th><th className="p-4 border-b text-right">Usuario</th></tr>
+                  <tr><th className="p-4 border-b">Fecha</th><th className="p-4 border-b">Material</th><th className="p-4 border-b text-center">Tipo</th><th className="p-4 border-b text-right">Cant.</th><th className="p-4 border-b text-right">Saldo</th><th className="p-4 border-b text-right">Usuario</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {historyData.map((log, idx) => (
@@ -760,7 +748,7 @@ export default function InventoryDashboard() {
                       <td className="p-4"><p className="text-sm font-medium">{log.material}</p><p className="text-xs text-slate-400">{log.codigo}</p></td>
                       <td className="p-4 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${log.tipo==='Entrada'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>{log.tipo}</span></td>
                       <td className="p-4 text-sm font-bold text-right">{log.cantidad}</td>
-                      <td className="p-4 text-sm text-slate-600"><div className="flex items-center gap-1"><Building2 size={12} className="text-slate-400"/> {log.destino || '-'}</div></td>
+                      <td className="p-4 text-sm text-right text-slate-500">{log.stockNuevo}</td>
                       <td className="p-4 text-xs text-right text-slate-400 italic">{log.usuario || 'Admin'}</td>
                     </tr>
                   ))}
