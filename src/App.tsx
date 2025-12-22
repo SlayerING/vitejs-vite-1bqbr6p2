@@ -6,39 +6,44 @@ import {
   AlertTriangle, 
   TrendingUp, 
   TrendingDown, 
-  Filter,
-  Menu,
-  X,
-  PieChart as PieChartIcon,
-  BarChart as BarChartIcon,
-  PlusCircle,
-  MinusCircle,
-  Save,
-  XCircle,
-  Plus,
-  Cloud,
-  Wifi,
-  Lock,
+  Filter, 
+  Menu, 
+  X, 
+  PieChart as PieChartIcon, 
+  BarChart as BarChartIcon, 
+  PlusCircle, 
+  MinusCircle, 
+  Save, 
+  XCircle, 
+  Plus, 
+  Cloud, 
+  Wifi, 
+  Lock, 
   Unlock, 
-  Pencil,
-  Trash2,
-  History,
-  DollarSign,
-  Upload,
-  Percent,
-  Truck,    
-  Users,    
-  CheckCircle2,
-  Download,
+  Pencil, 
+  Trash2, 
+  History, 
+  DollarSign, 
+  Upload, 
+  Percent, 
+  Truck, 
+  Users, 
+  CheckCircle2, 
+  Download, 
   Shield, 
-  Eye,
-  User,
-  Monitor,
-  Laptop,
+  Eye, 
+  User, 
+  Monitor, 
+  Laptop, 
+  Smartphone, 
   CheckCircle, 
   Info, 
-  AlertCircle,
-  ListFilter 
+  AlertCircle, 
+  ListFilter, 
+  Building2,
+  ShoppingCart, 
+  Printer,       
+  FilePlus       
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -62,16 +67,16 @@ import {
   ref, 
   onValue, 
   set, 
-  update,
-  remove,
-  push,
-  onDisconnect
+  update, 
+  remove, 
+  push, 
+  onDisconnect 
 } from 'firebase/database';
 
 // --- DATOS INICIALES ---
 const INITIAL_DATA = [
   { codigo: "TR0134", categoria: "TRANSMISIÓN", material: "Bandas viejas", descripcion: "Bandas viejas", unidad: "UNIDADES", stock: 86, costo: 0, aplicaIVA: true },
-  { codigo: "PE0128", categoria: "PERNOS", material: 'Perno 1/4 x 4"', descripcion: 'Perno 1/4 x 4"', unidad: "UNIDADES", stock: 25, costo: 0.50, aplicaIVA: true },
+  { codigo: "PE0128", categoria: "PERNOS", material: 'Perno 1/4 x 4"', descripcion: 'Perno 1/4 x 4"', unidad: "UNIDADES", stock: 25, costo: 18.50, aplicaIVA: true },
 ];
 
 // --- CONFIGURACIÓN DE SEGURIDAD ---
@@ -99,6 +104,7 @@ const HISTORY_PATH = `artifacts/${appId}/public/data/history`;
 const SETTINGS_PATH = `artifacts/${appId}/public/data/settings`;
 const SUPPLIERS_PATH = `artifacts/${appId}/public/data/suppliers`; 
 const PRESENCE_PATH = `artifacts/${appId}/public/data/presence`;
+const REQUISITIONS_PATH = `artifacts/${appId}/public/data/requisitions`; 
 
 // --- DEPARTAMENTOS / CENTROS DE COSTO ---
 const COST_CENTERS = [
@@ -111,9 +117,16 @@ const COST_CENTERS = [
   "Uso Interno"
 ];
 
+// --- HELPERS ---
+const getDeviceType = () => {
+  const ua = navigator.userAgent;
+  if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return "Tablet";
+  if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated/.test(ua)) return "Móvil";
+  return "PC";
+};
+
 // --- COMPONENTES UI ---
 
-// TOAST NOTIFICATION COMPONENT
 const ToastContainer = ({ toasts, removeToast }) => {
   return (
     <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
@@ -132,14 +145,8 @@ const ToastContainer = ({ toasts, removeToast }) => {
           {toast.type === 'error' && <XCircle size={20} className="text-red-500" />}
           {toast.type === 'info' && <Info size={20} className="text-blue-500" />}
           {toast.type === 'warning' && <AlertTriangle size={20} className="text-amber-500" />}
-          
-          <div className="flex-1">
-             <p className="text-sm font-medium">{toast.message}</p>
-          </div>
-          
-          <button onClick={() => removeToast(toast.id)} className="text-slate-400 hover:text-slate-600">
-            <X size={16} />
-          </button>
+          <div className="flex-1"><p className="text-sm font-medium">{toast.message}</p></div>
+          <button onClick={() => removeToast(toast.id)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
         </div>
       ))}
     </div>
@@ -181,53 +188,26 @@ const Badge = ({ children, type }) => {
   );
 };
 
-// --- LOGIN MODAL ---
 const AdminLoginModal = ({ isOpen, onClose, onLogin, addToast }) => {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
-
   if (!isOpen) return null;
-
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (pin === ADMIN_PIN) {
-      onLogin();
-      addToast("Modo Administrador activado", "success");
-      onClose();
-      setPin("");
-      setError(false);
-    } else {
-      setError(true);
-      addToast("PIN incorrecto", "error");
-    }
+    if (pin === ADMIN_PIN) { onLogin(); addToast("Modo Administrador activado", "success"); onClose(); setPin(""); setError(false); } 
+    else { setError(true); addToast("PIN incorrecto", "error"); }
   };
-
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95">
         <div className="p-6 text-center">
-          <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-            <Lock size={32} className="text-blue-600" />
-          </div>
+          <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4"><Lock size={32} className="text-blue-600" /></div>
           <h3 className="text-xl font-bold text-slate-800 mb-2">Acceso Administrador</h3>
           <p className="text-sm text-slate-500 mb-6">Ingresa el PIN para modificar datos.</p>
-          
           <form onSubmit={handleSubmit}>
-            <input 
-              type="password" 
-              className={`w-full text-center text-2xl tracking-widest p-3 border rounded-lg focus:outline-none focus:ring-2 ${error ? 'border-red-500 focus:ring-red-200' : 'border-slate-300 focus:ring-blue-500'}`}
-              placeholder="••••"
-              maxLength={4}
-              autoFocus
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-            />
+            <input type="password" className={`w-full text-center text-2xl tracking-widest p-3 border rounded-lg focus:outline-none focus:ring-2 ${error ? 'border-red-500 focus:ring-red-200' : 'border-slate-300 focus:ring-blue-500'}`} placeholder="••••" maxLength={4} autoFocus value={pin} onChange={(e) => setPin(e.target.value)} />
             {error && <p className="text-red-500 text-xs mt-2">PIN incorrecto</p>}
-            
-            <div className="flex gap-3 mt-6">
-              <button type="button" onClick={onClose} className="flex-1 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
-              <button type="submit" className="flex-1 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium">Entrar</button>
-            </div>
+            <div className="flex gap-3 mt-6"><button type="button" onClick={onClose} className="flex-1 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button><button type="submit" className="flex-1 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium">Entrar</button></div>
           </form>
         </div>
       </div>
@@ -235,104 +215,61 @@ const AdminLoginModal = ({ isOpen, onClose, onLogin, addToast }) => {
   );
 };
 
-// --- USERS LIST MODAL ---
-const ConnectedUsersModal = ({ isOpen, onClose, users, currentUserId }) => {
+const ProfileSetupModal = ({ isOpen, onClose, onSave }) => {
+  const [name, setName] = useState("");
+  const [device, setDevice] = useState("");
+  const [type, setType] = useState(getDeviceType());
+  useEffect(() => { if (isOpen) { setDevice(`${getDeviceType()} Principal`); } }, [isOpen]);
   if (!isOpen) return null;
-  
+  const handleSubmit = (e) => { e.preventDefault(); if (name && device) { onSave({ name, device, type }); onClose(); } };
   return (
-    <div className="fixed inset-0 z-[50] flex items-start justify-end p-4 pt-20 pointer-events-none">
-      <div className="bg-white rounded-xl shadow-2xl w-72 overflow-hidden pointer-events-auto border border-slate-200 animate-in slide-in-from-right-10 fade-in">
-        <div className="p-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-          <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2">
-            <Users size={16} className="text-blue-500"/> Dispositivos Conectados
-          </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16}/></button>
-        </div>
-        <div className="max-h-60 overflow-y-auto p-2 space-y-1">
-          {users.map((u, idx) => {
-             const isMe = u.user === currentUserId;
-             return (
-              <div key={idx} className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${isMe ? 'bg-blue-50 border border-blue-100' : 'hover:bg-slate-50'}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isMe ? 'bg-blue-200 text-blue-700' : 'bg-slate-200 text-slate-600'}`}>
-                  {u.name ? u.name.charAt(0).toUpperCase() : '?'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-700 truncate">
-                    {u.name || 'Desconocido'}
-                    {isMe && <span className="ml-1 text-xs font-bold text-blue-600">(Tú)</span>}
-                  </p>
-                  <p className="text-[10px] text-slate-400">
-                    {new Date(u.connectedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                  </p>
-                </div>
-                <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></div>
-              </div>
-             );
-          })}
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-emerald-900/90 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
+        <div className="p-8 text-center">
+          <div className="mx-auto w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-6"><User size={40} className="text-emerald-600" /></div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">¡Bienvenido al Sistema!</h2>
+          <p className="text-slate-500 mb-8">Para que todos sepan quién está conectado, por favor identifícate.</p>
+          <form onSubmit={handleSubmit} className="space-y-4 text-left">
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Tu Nombre</label><input type="text" className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="Ej. Juan Pérez" autoFocus required value={name} onChange={(e) => setName(e.target.value)} /></div>
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Nombre del Dispositivo</label><input type="text" className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="Ej. Samsung J9, Laptop Bodega..." required value={device} onChange={(e) => setDevice(e.target.value)} /><p className="text-xs text-slate-400 mt-1">Así aparecerás en la lista de conectados.</p></div>
+            <button type="submit" className="w-full py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-colors mt-4">Comenzar a trabajar</button>
+          </form>
         </div>
       </div>
     </div>
   );
 };
 
-// --- MODALES DE ACCION ---
+const ConnectedUsersModal = ({ isOpen, onClose, users, currentUserId }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[50] flex items-start justify-end p-4 pt-20 pointer-events-none">
+      <div className="bg-white rounded-xl shadow-2xl w-72 overflow-hidden pointer-events-auto border border-slate-200 animate-in slide-in-from-right-10 fade-in">
+        <div className="p-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center"><h3 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Users size={16} className="text-blue-500"/> Dispositivos Conectados</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16}/></button></div>
+        <div className="max-h-60 overflow-y-auto p-2 space-y-1">{users.map((u, idx) => { const isMe = u.user === currentUserId; return (<div key={idx} className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${isMe ? 'bg-blue-50 border border-blue-100' : 'hover:bg-slate-50'}`}><div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isMe ? 'bg-blue-200 text-blue-700' : 'bg-slate-200 text-slate-600'}`}>{u.type === 'Móvil' ? <Smartphone size={14}/> : <Monitor size={14}/>}</div><div className="flex-1 min-w-0"><p className="text-sm font-bold text-slate-800 truncate">{u.name || 'Usuario'}{isMe && <span className="ml-1 text-xs font-normal text-blue-600">(Tú)</span>}</p><p className="text-xs text-slate-500 truncate">{u.deviceName || 'Dispositivo'}</p></div><div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></div></div>); })}</div>
+      </div>
+    </div>
+  );
+};
+
 const MovementModal = ({ isOpen, onClose, item, onSave }) => {
   const [amount, setAmount] = useState(1);
   const [type, setType] = useState('entry'); 
   const [destination, setDestination] = useState(""); 
-
-  useEffect(() => {
-    if (isOpen) setDestination(type === 'exit' ? COST_CENTERS[0] : "Proveedor / Compra");
-  }, [isOpen, type]);
-
+  useEffect(() => { if (isOpen) setDestination(type === 'exit' ? COST_CENTERS[0] : "Proveedor / Compra"); }, [isOpen, type]);
   if (!isOpen || !item) return null;
-
-  const handleSubmit = () => {
-    const finalAmount = parseInt(amount, 10);
-    if (isNaN(finalAmount) || finalAmount <= 0) return;
-    
-    if (type === 'exit' && !destination) {
-      alert("Por favor selecciona un destino para la salida.");
-      return;
-    }
-
-    onSave(item.codigo, finalAmount, type, item.stock, item.material, destination);
-    setAmount(1); 
-    onClose();
-  };
-
+  const handleSubmit = () => { const finalAmount = parseInt(amount, 10); if (isNaN(finalAmount) || finalAmount <= 0) return; onSave(item.codigo, finalAmount, type, item.stock, item.material, destination); setAmount(1); onClose(); };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 className="font-bold text-slate-700">Registrar Movimiento</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><XCircle size={24} /></button>
-        </div>
+        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-700">Registrar Movimiento</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><XCircle size={24} /></button></div>
         <div className="p-6 space-y-4">
           <div><p className="text-sm text-slate-500 mb-1">Material:</p><p className="font-semibold text-lg text-slate-800">{item.material}</p><p className="text-xs text-slate-400 font-mono">Stock Actual: {item.stock}</p></div>
-          
-          <div className="flex gap-2 p-1 bg-slate-100 rounded-lg">
-            <button className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${type === 'entry' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setType('entry')}><PlusCircle size={16} /> Entrada</button>
-            <button className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${type === 'exit' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setType('exit')}><MinusCircle size={16} /> Salida</button>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Cantidad</label>
-            <input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-lg font-bold text-center" autoFocus />
-          </div>
-
-          {/* NO MOSTRAR SELECTOR DE DESTINO (REVERTIDO) */}
-
-          {type === 'exit' && (item.stock - amount < 0) && (
-            <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-start gap-2">
-              <AlertTriangle size={16} className="mt-0.5" /> <span>Advertencia: El stock quedará en negativo ({item.stock - amount}).</span>
-            </div>
-          )}
+          <div className="flex gap-2 p-1 bg-slate-100 rounded-lg"><button className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${type === 'entry' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setType('entry')}><PlusCircle size={16} /> Entrada</button><button className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${type === 'exit' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setType('exit')}><MinusCircle size={16} /> Salida</button></div>
+          <div><label className="block text-sm font-medium text-slate-700 mb-1">Cantidad</label><input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-lg font-bold text-center" autoFocus /></div>
+          {type === 'exit' && (item.stock - amount < 0) && (<div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-start gap-2"><AlertTriangle size={16} className="mt-0.5" /> <span>Advertencia: El stock quedará en negativo ({item.stock - amount}).</span></div>)}
         </div>
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
-          <button onClick={onClose} className="flex-1 px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition-colors">Cancelar</button>
-          <button onClick={handleSubmit} className={`flex-1 px-4 py-2 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${type === 'entry' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}><Save size={18} /> Confirmar</button>
-        </div>
+        <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3"><button onClick={onClose} className="flex-1 px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition-colors">Cancelar</button><button onClick={handleSubmit} className={`flex-1 px-4 py-2 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${type === 'entry' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}><Save size={18} /> Confirmar</button></div>
       </div>
     </div>
   );
@@ -361,7 +298,7 @@ const ProductFormModal = ({ isOpen, onClose, onSave, categories, productToEdit }
           <div className="grid grid-cols-3 gap-4">
             <div><label className="block text-sm font-medium text-slate-700 mb-1">Unidad</label><select className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" value={formData.unidad} onChange={(e) => setFormData({...formData, unidad: e.target.value})}><option value="UNIDADES">UNIDADES</option><option value="JUEGOS">JUEGOS</option><option value="GALONES">GALONES</option><option value="LIBRAS">LIBRAS</option><option value="METROS">METROS</option><option value="CAJAS">CAJAS</option></select></div>
             <div><label className="block text-sm font-medium text-slate-700 mb-1">Stock</label><input type="number" min="0" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.stock} onChange={(e) => setFormData({...formData, stock: parseInt(e.target.value) || 0})} /></div>
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">Costo Unit.</label><div className="relative"><span className="absolute left-3 top-2 text-slate-400">$</span><input type="number" min="0" step="0.01" className="w-full p-2 pl-6 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.costo} onChange={(e) => setFormData({...formData, costo: parseFloat(e.target.value) || 0})} /></div></div>
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Costo Unit.</label><div className="relative"><span className="absolute left-3 top-2 text-slate-400">C$</span><input type="number" min="0" step="0.01" className="w-full p-2 pl-8 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.costo} onChange={(e) => setFormData({...formData, costo: parseFloat(e.target.value) || 0})} /></div></div>
           </div>
           <div className="flex items-center gap-2 pt-2"><input type="checkbox" id="ivaCheck" checked={formData.aplicaIVA} onChange={(e) => setFormData({...formData, aplicaIVA: e.target.checked})} className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300" /><label htmlFor="ivaCheck" className="text-sm font-medium text-slate-700 flex items-center gap-1">Aplica IVA (15%)</label></div>
           <div className="pt-4 flex gap-3"><button type="button" onClick={onClose} className="flex-1 px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button><button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 rounded-lg transition-colors flex items-center justify-center gap-2"><Save size={18} /> {productToEdit ? 'Actualizar' : 'Guardar'}</button></div>
@@ -395,10 +332,149 @@ const SuppliersView = ({ isAdmin, suppliersData, inventoryData, addToast }) => {
           </div>
         ) : (
           <div className="max-w-3xl mx-auto"><h3 className="text-lg font-bold text-slate-800 mb-4 text-center">Comparador de Precios</h3><div className="bg-blue-50 p-6 rounded-xl border border-blue-100 mb-6"><label className="block text-sm font-medium text-slate-700 mb-2">Selecciona un Material para cotizar:</label><select className="w-full p-3 border border-slate-300 rounded-lg mb-4" value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)}><option value="">-- Selecciona Material --</option>{inventoryData.map(item => <option key={item.codigo} value={item.material}>{item.material} ({item.codigo})</option>)}</select>
-          {selectedProduct && (<div className="space-y-4"><div className="flex justify-between items-center"><h4 className="font-semibold text-slate-700">Cotizaciones</h4>{isAdmin && <button onClick={addComparisonRow} className="text-sm text-blue-600 font-medium flex items-center gap-1"><PlusCircle size={16}/> Agregar Cotización</button>}</div>{comparisonData.map((row, idx) => (<div key={idx} className="flex gap-4 items-center"><select className="flex-1 p-2 border rounded" value={row.supplierId} onChange={e => updateComparisonRow(idx, 'supplierId', e.target.value)} disabled={!isAdmin}><option value="">Selecciona Proveedor...</option>{suppliersData.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select><div className="relative w-32"><span className="absolute left-2 top-2 text-slate-400">$</span><input type="number" className="w-full p-2 pl-6 border rounded" placeholder="0.00" value={row.price} onChange={e => updateComparisonRow(idx, 'price', parseFloat(e.target.value))} disabled={!isAdmin} /></div></div>))}
-          {comparisonData.length > 1 && (<div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg text-center"><p className="text-green-800 font-bold text-lg">Mejor opción: {(() => { const valid = comparisonData.filter(d => d.price > 0 && d.supplierId); if(valid.length === 0) return "--"; const best = valid.reduce((min, curr) => curr.price < min.price ? curr : min, valid[0]); const sup = suppliersData.find(s => s.id === best.supplierId); return `${sup?.nombre || 'Desconocido'} a $${best.price}`; })()}</p></div>)}</div>)}</div></div>
+          {selectedProduct && (<div className="space-y-4"><div className="flex justify-between items-center"><h4 className="font-semibold text-slate-700">Cotizaciones</h4>{isAdmin && <button onClick={addComparisonRow} className="text-sm text-blue-600 font-medium flex items-center gap-1"><PlusCircle size={16}/> Agregar Cotización</button>}</div>{comparisonData.map((row, idx) => (<div key={idx} className="flex gap-4 items-center"><select className="flex-1 p-2 border rounded" value={row.supplierId} onChange={e => updateComparisonRow(idx, 'supplierId', e.target.value)} disabled={!isAdmin}><option value="">Selecciona Proveedor...</option>{suppliersData.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select><div className="relative w-32"><span className="absolute left-2 top-2 text-slate-400">C$</span><input type="number" className="w-full p-2 pl-8 border rounded" placeholder="0.00" value={row.price} onChange={e => updateComparisonRow(idx, 'price', parseFloat(e.target.value))} disabled={!isAdmin} /></div></div>))}
+          {comparisonData.length > 1 && (<div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg text-center"><p className="text-green-800 font-bold text-lg">Mejor opción: {(() => { const valid = comparisonData.filter(d => d.price > 0 && d.supplierId); if(valid.length === 0) return "--"; const best = valid.reduce((min, curr) => curr.price < min.price ? curr : min, valid[0]); const sup = suppliersData.find(s => s.id === best.supplierId); return `${sup?.nombre || 'Desconocido'} a C$${best.price}`; })()}</p></div>)}</div>)}</div></div>
         )}
       </div>
+    </div>
+  );
+};
+
+// --- NUEVA VISTA: REQUISICIONES (PEDIDOS) ---
+const RequisitionsView = ({ inventoryData, addToast, isAdmin }) => {
+  const [requisitions, setRequisitions] = useState([]);
+  const [searchItem, setSearchItem] = useState('');
+
+  useEffect(() => {
+    const reqRef = ref(db, REQUISITIONS_PATH);
+    const unsubscribe = onValue(reqRef, (snapshot) => {
+      const data = snapshot.val();
+      setRequisitions(data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : []);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleAddToRequisition = (item) => {
+    const existing = requisitions.find(r => r.codigo === item.codigo);
+    if (existing) { addToast("El producto ya está en la lista", "info"); return; }
+    // No guardamos cantidad
+    const newItem = { codigo: item.codigo, material: item.material, costo: item.costo || 0, aplicaIVA: item.aplicaIVA || false }; 
+    push(ref(db, REQUISITIONS_PATH), newItem).then(() => addToast("Agregado", "success")).catch(() => addToast("Error", "error"));
+  };
+
+  const handleRemoveRequisition = (id) => { remove(ref(db, `${REQUISITIONS_PATH}/${id}`)); };
+
+  const handleAutoFill = () => {
+    const lowStockItems = inventoryData.filter(i => i.stock <= 5);
+    if (lowStockItems.length === 0) { addToast("No hay stock bajo", "info"); return; }
+    let count = 0;
+    lowStockItems.forEach(item => {
+      const existing = requisitions.find(r => r.codigo === item.codigo);
+      if (!existing) {
+        push(ref(db, REQUISITIONS_PATH), { codigo: item.codigo, material: item.material, costo: item.costo || 0, aplicaIVA: item.aplicaIVA || false });
+        count++;
+      }
+    });
+    addToast(`Agregados ${count} items`, "success");
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '', 'width=800,height=600');
+    // Calculo total (aunque sin cantidades es solo una lista de precios)
+    // Asumiremos cantidad 1 para mostrar el precio unitario base en el total referencial si se desea, 
+    // pero el usuario pidió quitar la columna de cantidad.
+    // Simplemente listaremos.
+
+    const html = `
+      <html>
+      <head>
+        <title>Orden de Compra - Control ISC</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          h1 { color: #047857; text-align: center; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+          th { background-color: #f3f4f6; }
+          .footer { margin-top: 40px; font-weight: bold; text-align: right; }
+          @media print { button { display: none; } }
+        </style>
+      </head>
+      <body>
+        <h1>Listado de Requisición de Materiales</h1>
+        <p><strong>Fecha:</strong> ${new Date().toLocaleDateString()}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Material</th>
+              <th>Stock Actual</th> <!-- NUEVO -->
+              <th style="text-align: right">Costo Unit.</th>
+              <th style="text-align: right">Costo Unit. (+IVA)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${requisitions.map(item => {
+              // Buscar stock actual
+              const currentStock = inventoryData.find(i => i.codigo === item.codigo)?.stock || 0;
+              return `
+              <tr>
+                <td>${item.codigo}</td>
+                <td>${item.material}</td>
+                <td style="text-align: center">${currentStock}</td>
+                <td style="text-align: right">C$${item.costo.toFixed(2)}</td>
+                <td style="text-align: right">C$${(item.costo * (item.aplicaIVA ? 1.15 : 1)).toFixed(2)}</td>
+              </tr>
+            `}).join('')}
+          </tbody>
+        </table>
+        <div class="footer"><p>Firma Autorizada: __________________________</p></div>
+        <script>window.print();</script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  const filteredInventory = inventoryData.filter(i => i.material.toLowerCase().includes(searchItem.toLowerCase()) || i.codigo.toLowerCase().includes(searchItem.toLowerCase()));
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden">
+       <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+          <div className="flex gap-4 items-center"><h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><ShoppingCart className="text-emerald-600"/> Requisiciones</h3><span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full">{requisitions.length} Items</span></div>
+          <div className="flex gap-2">{isAdmin && <button onClick={handleAutoFill} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 text-sm font-medium"><FilePlus size={16}/> Cargar Stock Bajo</button>}<button onClick={handlePrint} className="flex items-center gap-2 bg-slate-800 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 text-sm font-medium"><Printer size={16}/> Imprimir Orden</button></div>
+       </div>
+       <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
+          <div className="w-full lg:w-1/3 border-r border-slate-100 flex flex-col bg-slate-50/50">
+             <div className="p-4 border-b border-slate-200"><div className="relative"><Search className="absolute left-3 top-2.5 text-slate-400" size={16}/><input type="text" placeholder="Buscar producto..." className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={searchItem} onChange={(e) => setSearchItem(e.target.value)}/></div></div>
+             <div className="flex-1 overflow-y-auto p-2">{filteredInventory.map(item => (<div key={item.codigo} className="flex justify-between items-center p-3 hover:bg-white hover:shadow-sm rounded-lg border border-transparent hover:border-slate-200 transition-all cursor-pointer group" onClick={() => isAdmin && handleAddToRequisition(item)}><div className="min-w-0"><p className="font-medium text-sm text-slate-700 truncate">{item.material}</p><p className="text-xs text-slate-500">Stock: <span className={item.stock <= 5 ? "text-red-500 font-bold" : ""}>{item.stock}</span></p></div>{isAdmin && <button className="text-emerald-600 opacity-0 group-hover:opacity-100 bg-emerald-50 p-1.5 rounded-md hover:bg-emerald-100"><Plus size={16}/></button>}</div>))}</div>
+          </div>
+          <div className="flex-1 flex flex-col bg-white">
+             <div className="flex-1 overflow-y-auto">
+                <table className="w-full text-left text-sm">
+                   <thead className="bg-slate-50 sticky top-0 z-10 text-slate-500">
+                      <tr><th className="p-3">Código</th><th className="p-3">Material</th><th className="p-3 text-center">Stock Actual</th><th className="p-3 text-right">Costo Unit.</th><th className="p-3 text-right">Costo + IVA</th><th className="p-3 text-center">Acción</th></tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100">
+                      {requisitions.map(req => {
+                         // Buscar stock actual en tiempo real desde inventoryData
+                         const stockActual = inventoryData.find(i => i.codigo === req.codigo)?.stock || 0;
+                         return (
+                         <tr key={req.id} className="hover:bg-slate-50">
+                            <td className="p-3 font-mono text-xs">{req.codigo}</td>
+                            <td className="p-3 font-medium text-slate-700">{req.material}</td>
+                            <td className="p-3 text-center font-bold text-slate-600">{stockActual}</td>
+                            <td className="p-3 text-right text-slate-600">C${(req.costo).toFixed(2)}</td>
+                            <td className="p-3 text-right font-bold text-emerald-600">C${(req.costo * (req.aplicaIVA ? 1.15 : 1)).toFixed(2)}{req.aplicaIVA && <span className="text-[10px] ml-1 text-slate-400">(15%)</span>}</td>
+                            <td className="p-3 text-center">{isAdmin && <button onClick={() => handleRemoveRequisition(req.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><Trash2 size={16}/></button>}</td>
+                         </tr>
+                      )})}
+                      {requisitions.length === 0 && (<tr><td colSpan="6" className="p-10 text-center text-slate-400 italic">La lista de requisición está vacía.</td></tr>)}
+                   </tbody>
+                </table>
+             </div>
+          </div>
+       </div>
     </div>
   );
 };
@@ -420,12 +496,14 @@ export default function InventoryDashboard() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
-  const [myDeviceName, setMyDeviceName] = useState(""); 
+  const [myDeviceName, setMyDeviceName] = useState("");
+  const [userProfile, setUserProfile] = useState(null); 
 
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isConnectedUsersModalOpen, setIsConnectedUsersModalOpen] = useState(false); 
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); 
   
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
@@ -441,8 +519,15 @@ export default function InventoryDashboard() {
   };
   const removeToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
 
-  // --- 1. AUTENTICACIÓN FIREBASE ---
+  // --- 1. AUTENTICACIÓN Y PERFIL ---
   useEffect(() => {
+    const savedProfile = localStorage.getItem('isc_user_profile');
+    if (savedProfile) {
+      setUserProfile(JSON.parse(savedProfile));
+    } else {
+      setIsProfileModalOpen(true); 
+    }
+
     const initAuth = async () => {
       try { await signInAnonymously(auth); } catch (error) { if (error.code === 'auth/configuration-not-found' || error.message.includes('configuration-not-found')) setAuthError('AUTH_CONFIG_MISSING'); }
     };
@@ -451,9 +536,16 @@ export default function InventoryDashboard() {
     return () => unsubscribe();
   }, [authError]);
 
+  const handleSaveProfile = (profile) => {
+    localStorage.setItem('isc_user_profile', JSON.stringify(profile));
+    setUserProfile(profile);
+  };
+
   // --- 2. DATA SYNC Y PRESENCIA ---
   useEffect(() => {
-    if (!user) return;
+    if (!user || !userProfile) return; 
+    
+    // a) Inventario
     const inventoryRef = ref(db, DB_PATH);
     const unsubscribeInv = onValue(inventoryRef, (snapshot) => {
       const data = snapshot.val();
@@ -470,27 +562,28 @@ export default function InventoryDashboard() {
     // PRESENCIA
     const connectedRef = ref(db, ".info/connected");
     const presenceRef = ref(db, PRESENCE_PATH);
-    let deviceName = localStorage.getItem('isc_device_name');
-    if (!deviceName) { deviceName = `Dispositivo-${Math.floor(Math.random() * 1000)}`; localStorage.setItem('isc_device_name', deviceName); }
-    setMyDeviceName(deviceName);
+    
     const unsubscribeConnected = onValue(connectedRef, (snap) => {
       if (snap.val() === true) {
         const myPresenceRef = push(presenceRef);
         import('firebase/database').then(({ onDisconnect }) => {
            onDisconnect(myPresenceRef).remove();
-           set(myPresenceRef, { user: user.uid, name: deviceName, connectedAt: Date.now() });
+           set(myPresenceRef, { 
+             user: user.uid, 
+             name: userProfile.name, 
+             deviceName: userProfile.device, 
+             type: userProfile.type,
+             connectedAt: Date.now() 
+           });
         });
       }
     });
     const unsubscribePresenceCount = onValue(presenceRef, (snap) => { if (snap.exists()) setOnlineUsersList(Object.values(snap.val())); else setOnlineUsersList([]); });
 
     return () => { unsubscribeInv(); unsubscribeHist(); unsubscribeSup(); unsubscribeLogo(); unsubscribeConnected(); unsubscribePresenceCount(); };
-  }, [user]);
+  }, [user, userProfile]);
 
-  const handleChangeDeviceName = () => {
-    const newName = prompt("Ingresa un nombre para este dispositivo:", myDeviceName);
-    if (newName && newName.trim() !== "") { localStorage.setItem('isc_device_name', newName); setMyDeviceName(newName); window.location.reload(); }
-  };
+  const handleChangeDeviceName = () => { setIsProfileModalOpen(true); };
 
   const exportToCSV = (data, filename) => {
     if (!data || data.length === 0) { addToast("No hay datos", "warning"); return; }
@@ -523,7 +616,7 @@ export default function InventoryDashboard() {
         codigo, material: nombreMaterial,
         tipo: tipo === 'entry' ? 'Entrada' : 'Salida',
         cantidad, stockAnterior: stockActual, stockNuevo: stockActual + adjustment,
-        usuario: myDeviceName,
+        usuario: userProfile ? userProfile.name : 'Admin', 
         destino: destino || 'No especificado'
       });
       addToast("Stock actualizado", "success");
@@ -561,14 +654,11 @@ export default function InventoryDashboard() {
   const rawCategories = [...new Set(inventoryData.map(item => item.categoria).filter(Boolean))].sort();
   const totalValue = inventoryData.reduce((acc, item) => acc + (item.stock * parseFloat(item.costo || 0) * (item.aplicaIVA ? 1.15 : 1)), 0);
 
-  // --- RENDER ---
   if (authError === 'AUTH_CONFIG_MISSING') return <div className="p-10 text-center text-red-600 font-bold">Falta configurar Auth Anónimo en Firebase</div>;
   if (loading) return <div className="h-screen flex items-center justify-center bg-emerald-900 text-white">Cargando...</div>;
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-800">
-      
-      {/* SIDEBAR */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-emerald-900 text-white transition-all duration-300 flex flex-col fixed h-full z-20 md:relative shadow-xl`}>
         <div className="p-6 flex flex-col justify-center h-20">
           <div className="flex items-center justify-between">
@@ -585,22 +675,19 @@ export default function InventoryDashboard() {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1 rounded hover:bg-emerald-800 text-emerald-100 self-center">{sidebarOpen ? <X size={20} /> : <Menu size={20} />}</button>
           </div>
         </div>
-        
         <nav className="flex-1 px-4 py-6 space-y-2">
-          {[{id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'}, {id: 'inventory', icon: Package, label: 'Inventario'}, {id: 'suppliers', icon: Truck, label: 'Proveedores'}, {id: 'history', icon: History, label: 'Historial'}].map(item => (
+          {[{id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'}, {id: 'inventory', icon: Package, label: 'Inventario'}, {id: 'requisitions', icon: ShoppingCart, label: 'Requisiciones'}, {id: 'suppliers', icon: Truck, label: 'Proveedores'}, {id: 'history', icon: History, label: 'Historial'}].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${activeTab === item.id ? 'bg-emerald-700 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-800'}`}>
               <item.icon size={20} />{sidebarOpen && <span>{item.label}</span>}
             </button>
           ))}
         </nav>
-
-        {/* STATUS BAR & LOCK */}
         <div className="p-4 border-t border-emerald-800 space-y-3">
           {sidebarOpen && (
             <div className="flex items-center justify-between text-emerald-300 text-xs">
-              <div className="flex items-center gap-2 group cursor-pointer" onClick={handleChangeDeviceName} title="Clic para cambiar nombre">
+              <div className="flex items-center gap-2 group cursor-pointer" onClick={handleChangeDeviceName} title="Clic para cambiar identidad">
                 <div className="w-2 h-2 rounded-full bg-green-400"></div>
-                <div className="flex flex-col"><span className="font-bold text-white truncate max-w-[100px]">{myDeviceName}</span><span>En línea</span></div><Pencil size={10} className="opacity-0 group-hover:opacity-100"/>
+                <div className="flex flex-col"><span className="font-bold text-white truncate max-w-[100px]">{userProfile ? userProfile.name : 'Usuario'}</span><span>En línea</span></div><Pencil size={10} className="opacity-0 group-hover:opacity-100"/>
               </div>
             </div>
           )}
@@ -615,16 +702,19 @@ export default function InventoryDashboard() {
         </div>
       </aside>
 
-      {/* MAIN */}
       <main className="flex-1 overflow-y-auto p-4 md:p-8">
         <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">{activeTab === 'dashboard' ? 'Visión General' : activeTab === 'inventory' ? 'Inventario' : activeTab === 'suppliers' ? 'Proveedores' : 'Historial'}</h2>
+            <h2 className="text-2xl font-bold text-slate-800">{activeTab === 'dashboard' ? 'Visión General' : activeTab === 'inventory' ? 'Inventario' : activeTab === 'requisitions' ? 'Requisiciones y Pedidos' : activeTab === 'suppliers' ? 'Proveedores' : 'Historial'}</h2>
             <div className="flex items-center gap-2 text-slate-500 text-sm"><Wifi size={14} className="text-emerald-500" /><span>En línea • {isAdmin ? 'Edición Habilitada' : 'Solo Lectura'}</span></div>
           </div>
           <button onClick={() => setIsConnectedUsersModalOpen(true)} className="flex items-center gap-4 text-sm font-medium text-slate-500 bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors">
              <div className="flex items-center gap-2"><Users size={18} className="text-blue-500" /><span className="text-blue-700 font-bold">{onlineUsersList.length}</span><span className="text-slate-600">Conectados</span></div>
-             <div className="hidden md:flex items-center gap-2 border-l pl-4 border-slate-200 text-xs"><Laptop size={14} className="text-slate-400"/><span className="font-bold text-slate-700">{myDeviceName}</span><span className="text-emerald-600 font-semibold bg-emerald-50 px-1.5 rounded">(Tú)</span></div>
+             <div className="hidden md:flex items-center gap-2 border-l pl-4 border-slate-200 text-xs">
+               {userProfile && userProfile.type === 'Móvil' ? <Smartphone size={14} className="text-slate-400"/> : <Laptop size={14} className="text-slate-400"/>}
+               <span className="font-bold text-slate-700">{userProfile ? userProfile.device : 'Dispositivo'}</span>
+               <span className="text-emerald-600 font-semibold bg-emerald-50 px-1.5 rounded">(Tú)</span>
+             </div>
           </button>
         </header>
 
@@ -633,7 +723,7 @@ export default function InventoryDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <Card title="Total Productos" value={inventoryData.length} icon={Package} color="blue" />
               <Card title="Stock Total" value={inventoryData.reduce((acc, item) => acc + item.stock, 0)} icon={BarChartIcon} color="emerald" />
-              <Card title="Valor (c/IVA)" value={`$${totalValue.toLocaleString('en-US', {minimumFractionDigits: 2})}`} icon={DollarSign} color="indigo" />
+              <Card title="Valor (c/IVA)" value={`C$${totalValue.toLocaleString('en-US', {minimumFractionDigits: 2})}`} icon={DollarSign} color="indigo" />
               <Card title="Agotados" value={inventoryData.filter(i => i.stock <= 0).length} icon={AlertTriangle} color="red" trend="down" />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -677,7 +767,6 @@ export default function InventoryDashboard() {
               </div>
             </div>
             
-            {/* FILTROS RAPIDOS AQUI */}
             <div className="px-4 py-2 bg-slate-50/50 border-b border-slate-100 flex gap-2">
                <button onClick={() => setStatusFilter('all')} className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-2 transition-colors ${statusFilter === 'all' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}><ListFilter size={14}/> Todos ({inventoryData.length})</button>
                <button onClick={() => setStatusFilter('low')} className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-2 transition-colors ${statusFilter === 'low' ? 'bg-amber-100 text-amber-800 border-amber-200 ring-1 ring-amber-300' : 'bg-white text-slate-600 border-slate-200 hover:bg-amber-50 hover:text-amber-700'}`}><AlertTriangle size={14} className={statusFilter === 'low' ? 'text-amber-600' : 'text-slate-400'}/> Stock Bajo ({inventoryData.filter(i => i.stock <= 5 && i.stock > 0).length})</button>
@@ -704,8 +793,8 @@ export default function InventoryDashboard() {
                       <td className="p-4 text-sm font-mono text-slate-600">{item.codigo}</td>
                       <td className="p-4"><p className="text-sm font-semibold">{item.material}</p></td>
                       <td className="p-4 text-sm hidden md:table-cell"><span className="px-2 py-1 rounded bg-slate-100 text-xs font-medium">{item.categoria}</span></td>
-                      <td className="p-4 text-sm text-right text-slate-500">${(item.costo || 0).toFixed(2)}</td>
-                      <td className="p-4 text-sm text-right font-bold text-emerald-600">${((item.costo||0)*(item.aplicaIVA?1.15:1)).toFixed(2)}</td>
+                      <td className="p-4 text-sm text-right text-slate-500">C${(item.costo || 0).toFixed(2)}</td>
+                      <td className="p-4 text-sm text-right font-bold text-emerald-600">C${((item.costo||0)*(item.aplicaIVA?1.15:1)).toFixed(2)}</td>
                       <td className={`p-4 text-lg font-bold text-right ${item.stock<0?'text-red-600':'text-slate-800'}`}>{item.stock}</td>
                       <td className="p-4 text-center">
                         {item.stock <= 0 ? <Badge type="danger">Agotado</Badge> : item.stock <= 5 ? <Badge type="warning">Bajo</Badge> : <Badge type="success">En Stock</Badge>}
@@ -728,6 +817,8 @@ export default function InventoryDashboard() {
           </div>
         )}
 
+        {activeTab === 'requisitions' && <RequisitionsView isAdmin={isAdmin} inventoryData={inventoryData} addToast={addToast} />}
+
         {activeTab === 'suppliers' && <SuppliersView isAdmin={isAdmin} suppliersData={suppliersData} inventoryData={inventoryData} addToast={addToast} />}
 
         {activeTab === 'history' && (
@@ -739,7 +830,7 @@ export default function InventoryDashboard() {
             <div className="overflow-auto flex-1">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-50 sticky top-0 z-10">
-                  <tr><th className="p-4 border-b">Fecha</th><th className="p-4 border-b">Material</th><th className="p-4 border-b text-center">Tipo</th><th className="p-4 border-b text-right">Cant.</th><th className="p-4 border-b text-right">Saldo</th><th className="p-4 border-b text-right">Usuario</th></tr>
+                  <tr><th className="p-4 border-b">Fecha</th><th className="p-4 border-b">Material</th><th className="p-4 border-b text-center">Tipo</th><th className="p-4 border-b text-right">Cant.</th><th className="p-4 border-b">Destino / Razón</th><th className="p-4 border-b text-right">Usuario</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {historyData.map((log, idx) => (
@@ -748,7 +839,7 @@ export default function InventoryDashboard() {
                       <td className="p-4"><p className="text-sm font-medium">{log.material}</p><p className="text-xs text-slate-400">{log.codigo}</p></td>
                       <td className="p-4 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${log.tipo==='Entrada'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>{log.tipo}</span></td>
                       <td className="p-4 text-sm font-bold text-right">{log.cantidad}</td>
-                      <td className="p-4 text-sm text-right text-slate-500">{log.stockNuevo}</td>
+                      <td className="p-4 text-sm text-slate-600"><div className="flex items-center gap-1"><Building2 size={12} className="text-slate-400"/> {log.destino || '-'}</div></td>
                       <td className="p-4 text-xs text-right text-slate-400 italic">{log.usuario || 'Admin'}</td>
                     </tr>
                   ))}
@@ -762,6 +853,7 @@ export default function InventoryDashboard() {
       {/* TOASTS & MODALES */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <AdminLoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={() => setIsAdmin(true)} addToast={addToast} />
+      <ProfileSetupModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} onSave={handleSaveProfile} />
       <ConnectedUsersModal isOpen={isConnectedUsersModalOpen} onClose={() => setIsConnectedUsersModalOpen(false)} users={onlineUsersList} currentUserId={user?.uid} />
       <MovementModal isOpen={isStockModalOpen} onClose={() => setIsStockModalOpen(false)} item={selectedItem} onSave={handleUpdateStock} />
       <ProductFormModal isOpen={isFormModalOpen} onClose={() => setIsFormModalOpen(false)} onSave={handleSaveProduct} categories={rawCategories} productToEdit={editingItem} />
