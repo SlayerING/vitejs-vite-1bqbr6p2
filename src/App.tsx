@@ -43,7 +43,9 @@ import {
   Building2,
   ShoppingCart, 
   Printer,       
-  FilePlus       
+  FilePlus,
+  FileClock,
+  Activity // Icono para Rotación
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -52,7 +54,8 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer
+  ResponsiveContainer,
+  Cell
 } from 'recharts';
 
 // --- FIREBASE IMPORTS ---
@@ -76,7 +79,7 @@ import {
 // --- DATOS INICIALES ---
 const INITIAL_DATA = [
   { codigo: "TR0134", categoria: "TRANSMISIÓN", material: "Bandas viejas", descripcion: "Bandas viejas", unidad: "UNIDADES", stock: 86, costo: 0, aplicaIVA: true },
-  { codigo: "PE0128", categoria: "PERNOS", material: 'Perno 1/4 x 4"', descripcion: 'Perno 1/4 x 4"', unidad: "UNIDADES", stock: 25, costo: 18.50, aplicaIVA: true },
+  { codigo: "PE0128", categoria: "PERNOS", material: 'Perno 1/4 x 4"', descripcion: 'Perno 1/4 x 4"', unidad: "UNIDADES", stock: 25, costo: 0.50, aplicaIVA: true },
 ];
 
 // --- CONFIGURACIÓN DE SEGURIDAD ---
@@ -308,6 +311,42 @@ const ProductFormModal = ({ isOpen, onClose, onSave, categories, productToEdit }
   );
 };
 
+// --- MODAL KARDEX (HISTORIAL INDIVIDUAL) ---
+const ProductHistoryModal = ({ isOpen, onClose, product, history }) => {
+  if (!isOpen || !product) return null;
+  const productHistory = history.filter(h => h.codigo === product.codigo);
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[80vh] animate-in zoom-in-95">
+        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <div><h3 className="font-bold text-slate-800 flex items-center gap-2"><FileClock size={20} className="text-purple-600"/> Kardex / Historial</h3><p className="text-sm text-slate-500">{product.material} ({product.codigo})</p></div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+        </div>
+        <div className="overflow-y-auto p-4 flex-1">
+          {productHistory.length === 0 ? (<div className="text-center py-10 text-slate-400 italic">No hay movimientos registrados para este producto.</div>) : (
+            <table className="w-full text-left text-sm border-collapse">
+              <thead className="bg-slate-50 text-slate-600 sticky top-0">
+                <tr><th className="p-3 border-b">Fecha</th><th className="p-3 border-b text-center">Tipo</th><th className="p-3 border-b text-right">Cant.</th><th className="p-3 border-b text-right">Saldo</th><th className="p-3 border-b">Detalle / Usuario</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {productHistory.map((log, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="p-3 font-mono text-xs">{log.fecha}</td>
+                    <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${log.tipo === 'Entrada' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{log.tipo}</span></td>
+                    <td className="p-3 text-right font-bold">{log.cantidad}</td>
+                    <td className="p-3 text-right text-slate-500">{log.stockNuevo}</td>
+                    <td className="p-3 text-xs"><div className="font-medium text-slate-700">{log.usuario || 'Admin'}</div><div className="text-slate-400">{log.destino || '-'}</div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- COMPONENTE DE PROVEEDORES ---
 const SuppliersView = ({ isAdmin, suppliersData, inventoryData, addToast }) => {
   const [activeTab, setActiveTab] = useState('list');
@@ -381,10 +420,6 @@ const RequisitionsView = ({ inventoryData, addToast, isAdmin }) => {
   const handlePrint = () => {
     const printWindow = window.open('', '', 'width=800,height=600');
     // Calculo total (aunque sin cantidades es solo una lista de precios)
-    // Asumiremos cantidad 1 para mostrar el precio unitario base en el total referencial si se desea, 
-    // pero el usuario pidió quitar la columna de cantidad.
-    // Simplemente listaremos.
-
     const html = `
       <html>
       <head>
@@ -457,7 +492,6 @@ const RequisitionsView = ({ inventoryData, addToast, isAdmin }) => {
                    </thead>
                    <tbody className="divide-y divide-slate-100">
                       {requisitions.map(req => {
-                         // Buscar stock actual en tiempo real desde inventoryData
                          const stockActual = inventoryData.find(i => i.codigo === req.codigo)?.stock || 0;
                          return (
                          <tr key={req.id} className="hover:bg-slate-50">
@@ -504,9 +538,11 @@ export default function InventoryDashboard() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isConnectedUsersModalOpen, setIsConnectedUsersModalOpen] = useState(false); 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); 
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false); 
   
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
+  const [historyItem, setHistoryItem] = useState(null); 
   const fileInputRef = useRef(null);
 
   // --- HELPER TOASTS ---
@@ -638,6 +674,7 @@ export default function InventoryDashboard() {
   const handleOpenStockModal = (item) => { setSelectedItem(item); setIsStockModalOpen(true); };
   const handleOpenCreateModal = () => { setEditingItem(null); setIsFormModalOpen(true); };
   const handleOpenEditModal = (item) => { setEditingItem(item); setIsFormModalOpen(true); };
+  const handleOpenProductHistory = (item) => { setHistoryItem(item); setIsHistoryModalOpen(true); };
 
   const filteredData = useMemo(() => {
     return inventoryData.filter(item => {
@@ -653,6 +690,20 @@ export default function InventoryDashboard() {
   const categories = ['Todas', ...new Set(inventoryData.map(item => item.categoria).filter(Boolean))];
   const rawCategories = [...new Set(inventoryData.map(item => item.categoria).filter(Boolean))].sort();
   const totalValue = inventoryData.reduce((acc, item) => acc + (item.stock * parseFloat(item.costo || 0) * (item.aplicaIVA ? 1.15 : 1)), 0);
+
+  const rotationData = useMemo(() => {
+    const rotation = {};
+    historyData.forEach(h => {
+      if (h.tipo === 'Salida') {
+        const key = h.material || 'Desconocido';
+        rotation[key] = (rotation[key] || 0) + Number(h.cantidad);
+      }
+    });
+    return Object.entries(rotation)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [historyData]);
 
   if (authError === 'AUTH_CONFIG_MISSING') return <div className="p-10 text-center text-red-600 font-bold">Falta configurar Auth Anónimo en Firebase</div>;
   if (loading) return <div className="h-screen flex items-center justify-center bg-emerald-900 text-white">Cargando...</div>;
@@ -710,11 +761,7 @@ export default function InventoryDashboard() {
           </div>
           <button onClick={() => setIsConnectedUsersModalOpen(true)} className="flex items-center gap-4 text-sm font-medium text-slate-500 bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors">
              <div className="flex items-center gap-2"><Users size={18} className="text-blue-500" /><span className="text-blue-700 font-bold">{onlineUsersList.length}</span><span className="text-slate-600">Conectados</span></div>
-             <div className="hidden md:flex items-center gap-2 border-l pl-4 border-slate-200 text-xs">
-               {userProfile && userProfile.type === 'Móvil' ? <Smartphone size={14} className="text-slate-400"/> : <Laptop size={14} className="text-slate-400"/>}
-               <span className="font-bold text-slate-700">{userProfile ? userProfile.device : 'Dispositivo'}</span>
-               <span className="text-emerald-600 font-semibold bg-emerald-50 px-1.5 rounded">(Tú)</span>
-             </div>
+             <div className="hidden md:flex items-center gap-2 border-l pl-4 border-slate-200 text-xs"><Laptop size={14} className="text-slate-400"/><span className="font-bold text-slate-700">{userProfile ? userProfile.device : 'Dispositivo'}</span><span className="text-emerald-600 font-semibold bg-emerald-50 px-1.5 rounded">(Tú)</span></div>
           </button>
         </header>
 
@@ -726,22 +773,51 @@ export default function InventoryDashboard() {
               <Card title="Valor (c/IVA)" value={`C$${totalValue.toLocaleString('en-US', {minimumFractionDigits: 2})}`} icon={DollarSign} color="indigo" />
               <Card title="Agotados" value={inventoryData.filter(i => i.stock <= 0).length} icon={AlertTriangle} color="red" trend="down" />
             </div>
+            
+            {/* GRÁFICOS: AHORA INCLUYE ANÁLISIS DE ROTACIÓN */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-96 flex flex-col">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">Stock por Categoría</h3>
-                <div className="flex-1 w-full min-h-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={Object.entries(inventoryData.reduce((acc, i) => { const c = i.categoria.includes('CHUMAZERAS')?'CHUMAZERAS':i.categoria; acc[c] = (acc[c]||0)+i.stock; return acc; }, {})).map(([name, value]) => ({name, value})).sort((a,b)=>b.value-a.value).slice(0,7)} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                      <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20} />
-                    </BarChart>
-                  </ResponsiveContainer>
+              <div className="lg:col-span-2 space-y-6">
+                {/* Gráfico 1: Stock por Categoría */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-80 flex flex-col">
+                  <h3 className="text-lg font-bold text-slate-800 mb-4">Stock por Categoría</h3>
+                  <div className="flex-1 w-full min-h-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={Object.entries(inventoryData.reduce((acc, i) => { const c = i.categoria.includes('CHUMAZERAS')?'CHUMAZERAS':i.categoria; acc[c] = (acc[c]||0)+i.stock; return acc; }, {})).map(([name, value]) => ({name, value})).sort((a,b)=>b.value-a.value).slice(0,7)} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                        <XAxis type="number" hide />
+                        <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Gráfico 2: Análisis de Rotación (NUEVO) */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-80 flex flex-col">
+                  <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <Activity size={20} className="text-purple-600"/> Análisis de Rotación (Top 5 Salidas)
+                  </h3>
+                  <div className="flex-1 w-full min-h-0">
+                     {rotationData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={rotationData} layout="vertical" margin={{ left: 40 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="name" type="category" width={150} tick={{fontSize: 11}} />
+                          <Tooltip cursor={{fill: '#f1f5f9'}} />
+                          <Bar dataKey="value" fill="#8B5CF6" radius={[0, 4, 4, 0]} barSize={20} name="Unidades" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                     ) : (
+                       <div className="h-full flex items-center justify-center text-slate-400 italic">No hay datos de salidas aún.</div>
+                     )}
+                  </div>
                 </div>
               </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-96 overflow-y-auto">
+
+              {/* Columna Derecha: Stock Bajo */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-auto overflow-y-auto">
                 <h3 className="text-lg font-bold text-slate-800 mb-4">Stock Bajo</h3>
                 {inventoryData.filter(i => i.stock <= 5).sort((a,b)=>a.stock-b.stock).map((item, idx) => (
                   <div key={idx} className="flex justify-between items-center p-3 hover:bg-slate-50 border-b last:border-0">
@@ -749,6 +825,7 @@ export default function InventoryDashboard() {
                     <Badge type={item.stock <= 0 ? "danger" : "warning"}>{item.stock}</Badge>
                   </div>
                 ))}
+                {inventoryData.filter(i => i.stock <= 5).length === 0 && <p className="text-slate-400 text-sm italic text-center py-10">Todo en orden.</p>}
               </div>
             </div>
           </div>
@@ -780,6 +857,7 @@ export default function InventoryDashboard() {
                     <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b">Código</th>
                     <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b">Material</th>
                     <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b hidden md:table-cell">Categoría</th>
+                    {/* COLUMNA UBICACION ELIMINADA */}
                     <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-right">Precio Unit.</th>
                     <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-right text-emerald-600">Costo + IVA</th>
                     <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-right">Stock</th>
@@ -793,6 +871,7 @@ export default function InventoryDashboard() {
                       <td className="p-4 text-sm font-mono text-slate-600">{item.codigo}</td>
                       <td className="p-4"><p className="text-sm font-semibold">{item.material}</p></td>
                       <td className="p-4 text-sm hidden md:table-cell"><span className="px-2 py-1 rounded bg-slate-100 text-xs font-medium">{item.categoria}</span></td>
+                      {/* CELDA UBICACION ELIMINADA */}
                       <td className="p-4 text-sm text-right text-slate-500">C${(item.costo || 0).toFixed(2)}</td>
                       <td className="p-4 text-sm text-right font-bold text-emerald-600">C${((item.costo||0)*(item.aplicaIVA?1.15:1)).toFixed(2)}</td>
                       <td className={`p-4 text-lg font-bold text-right ${item.stock<0?'text-red-600':'text-slate-800'}`}>{item.stock}</td>
@@ -800,13 +879,16 @@ export default function InventoryDashboard() {
                         {item.stock <= 0 ? <Badge type="danger">Agotado</Badge> : item.stock <= 5 ? <Badge type="warning">Bajo</Badge> : <Badge type="success">En Stock</Badge>}
                       </td>
                       <td className="p-4 text-center">
-                        {isAdmin ? (
-                          <div className="flex justify-center gap-2">
-                            <button onClick={() => handleOpenStockModal(item)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><PlusCircle size={18}/></button>
-                            <button onClick={() => handleOpenEditModal(item)} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100"><Pencil size={18}/></button>
-                            <button onClick={() => handleDeleteProduct(item.codigo)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={18}/></button>
-                          </div>
-                        ) : <span className="text-xs text-slate-400 italic">Solo Lectura</span>}
+                        <div className="flex justify-center gap-2">
+                           <button onClick={() => handleOpenProductHistory(item)} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200" title="Ver Historial"><History size={18}/></button>
+                           {isAdmin && (
+                            <>
+                              <button onClick={() => handleOpenStockModal(item)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><PlusCircle size={18}/></button>
+                              <button onClick={() => handleOpenEditModal(item)} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100"><Pencil size={18}/></button>
+                              <button onClick={() => handleDeleteProduct(item.codigo)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={18}/></button>
+                            </>
+                           )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -857,6 +939,7 @@ export default function InventoryDashboard() {
       <ConnectedUsersModal isOpen={isConnectedUsersModalOpen} onClose={() => setIsConnectedUsersModalOpen(false)} users={onlineUsersList} currentUserId={user?.uid} />
       <MovementModal isOpen={isStockModalOpen} onClose={() => setIsStockModalOpen(false)} item={selectedItem} onSave={handleUpdateStock} />
       <ProductFormModal isOpen={isFormModalOpen} onClose={() => setIsFormModalOpen(false)} onSave={handleSaveProduct} categories={rawCategories} productToEdit={editingItem} />
+      <ProductHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} product={historyItem} history={historyData} />
     </div>
   );
 }
