@@ -45,7 +45,9 @@ import {
   Printer,       
   FilePlus,
   FileClock,
-  Activity // Icono para Rotación
+  Activity,
+  QrCode,
+  Settings 
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -54,8 +56,7 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer,
-  Cell
+  ResponsiveContainer
 } from 'recharts';
 
 // --- FIREBASE IMPORTS ---
@@ -80,6 +81,18 @@ import {
 const INITIAL_DATA = [
   { codigo: "TR0134", categoria: "TRANSMISIÓN", material: "Bandas viejas", descripcion: "Bandas viejas", unidad: "UNIDADES", stock: 86, costo: 0, aplicaIVA: true },
   { codigo: "PE0128", categoria: "PERNOS", material: 'Perno 1/4 x 4"', descripcion: 'Perno 1/4 x 4"', unidad: "UNIDADES", stock: 25, costo: 0.50, aplicaIVA: true },
+];
+
+// Listas por defecto (strings)
+const DEFAULT_CATEGORIES_LIST = [
+  "TRANSMISIÓN", "PERNOS", "ADHESIVOS", "CHUMAZERAS FLANCH", "HERRAMIENTAS", 
+  "EPP", "FUNDICIÓN", "CUCHILLAS", "IMPERMEABILIZANTES", "LIJAS", 
+  "BALINERAS", "PINTURAS", "METALES", "SOLDADURA", "DISCOS", 
+  "CHUMAZERAS PIE", "TUERCAS", "ARANDELAS DE PRESIÓN", "ARANDELAS LISAS", "GENERAL"
+];
+
+const DEFAULT_UNITS_LIST = [
+  "UNIDADES", "JUEGOS", "GALONES", "LIBRAS", "METROS", "CAJAS", "LITROS", "PARES", "ROLLOS", "BOLSAS", "PIEZAS"
 ];
 
 // --- CONFIGURACIÓN DE SEGURIDAD ---
@@ -107,9 +120,10 @@ const HISTORY_PATH = `artifacts/${appId}/public/data/history`;
 const SETTINGS_PATH = `artifacts/${appId}/public/data/settings`;
 const SUPPLIERS_PATH = `artifacts/${appId}/public/data/suppliers`; 
 const PRESENCE_PATH = `artifacts/${appId}/public/data/presence`;
-const REQUISITIONS_PATH = `artifacts/${appId}/public/data/requisitions`; 
+const REQUISITIONS_PATH = `artifacts/${appId}/public/data/requisitions`;
+const CATEGORIES_PATH = `artifacts/${appId}/public/data/settings/categories`;
+const UNITS_PATH = `artifacts/${appId}/public/data/settings/units`;
 
-// --- DEPARTAMENTOS / CENTROS DE COSTO ---
 const COST_CENTERS = [
   "Mantenimiento General",
   "Infraestructura",
@@ -120,7 +134,6 @@ const COST_CENTERS = [
   "Uso Interno"
 ];
 
-// --- HELPERS ---
 const getDeviceType = () => {
   const ua = navigator.userAgent;
   if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return "Tablet";
@@ -278,16 +291,41 @@ const MovementModal = ({ isOpen, onClose, item, onSave }) => {
   );
 };
 
-const ProductFormModal = ({ isOpen, onClose, onSave, categories, productToEdit }) => {
-  const [formData, setFormData] = useState({ codigo: '', material: '', categoria: '', unidad: 'UNIDADES', stock: 0, costo: 0, aplicaIVA: true });
+const ProductFormModal = ({ isOpen, onClose, onSave, categories, units, productToEdit }) => {
+  const [formData, setFormData] = useState({ codigo: '', material: '', categoria: '', unidad: '', stock: 0, costo: 0, aplicaIVA: true });
   useEffect(() => {
     if (isOpen) {
-      if (productToEdit) { setFormData({ ...productToEdit, aplicaIVA: productToEdit.aplicaIVA !== undefined ? productToEdit.aplicaIVA : true }); } 
-      else { setFormData({ codigo: '', material: '', categoria: categories[0] || 'GENERAL', unidad: 'UNIDADES', stock: 0, costo: 0, aplicaIVA: true }); }
+      // Usar categorías/unidades pasadas como props
+      const defaultCat = (categories && categories.length > 0) ? categories[0] : 'GENERAL';
+      const defaultUnit = (units && units.length > 0) ? units[0] : 'UNIDADES';
+      
+      if (productToEdit) {
+        setFormData({
+          codigo: productToEdit.codigo || '',
+          material: productToEdit.material || '',
+          categoria: productToEdit.categoria || defaultCat,
+          unidad: productToEdit.unidad || defaultUnit,
+          stock: productToEdit.stock !== undefined ? productToEdit.stock : 0,
+          costo: productToEdit.costo !== undefined ? productToEdit.costo : 0,
+          aplicaIVA: productToEdit.aplicaIVA !== undefined ? productToEdit.aplicaIVA : true
+        });
+      } else {
+        setFormData({ 
+          codigo: '', 
+          material: '', 
+          categoria: defaultCat, 
+          unidad: defaultUnit, 
+          stock: 0, 
+          costo: 0, 
+          aplicaIVA: true 
+        });
+      }
     }
-  }, [isOpen, productToEdit, categories]);
+  }, [isOpen, productToEdit, categories, units]);
+
   if (!isOpen) return null;
   const handleSubmit = (e) => { e.preventDefault(); if (!formData.codigo || !formData.material) return; onSave(formData, !!productToEdit); onClose(); };
+  
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -295,11 +333,21 @@ const ProductFormModal = ({ isOpen, onClose, onSave, categories, productToEdit }
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium text-slate-700 mb-1">Código *</label><input required type="text" disabled={!!productToEdit} placeholder="Ej. PE0999" className={`w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${productToEdit ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`} value={formData.codigo} onChange={(e) => setFormData({...formData, codigo: e.target.value})} /></div>
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">Categoría</label><input list="category-options" type="text" placeholder="Selecciona..." className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.categoria} onChange={(e) => setFormData({...formData, categoria: e.target.value})} /><datalist id="category-options">{categories.map(cat => <option key={cat} value={cat} />)}</datalist></div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Categoría</label>
+              <select className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" value={formData.categoria} onChange={(e) => setFormData({...formData, categoria: e.target.value})}>
+                {categories.map((cat, idx) => <option key={`${cat}-${idx}`} value={cat}>{cat}</option>)}
+              </select>
+            </div>
           </div>
           <div><label className="block text-sm font-medium text-slate-700 mb-1">Nombre del Material *</label><input required type="text" placeholder="Ej. Perno Hexagonal 3/4" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.material} onChange={(e) => setFormData({...formData, material: e.target.value})} /></div>
           <div className="grid grid-cols-3 gap-4">
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">Unidad</label><select className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" value={formData.unidad} onChange={(e) => setFormData({...formData, unidad: e.target.value})}><option value="UNIDADES">UNIDADES</option><option value="JUEGOS">JUEGOS</option><option value="GALONES">GALONES</option><option value="LIBRAS">LIBRAS</option><option value="METROS">METROS</option><option value="CAJAS">CAJAS</option></select></div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Unidad</label>
+              <select className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" value={formData.unidad} onChange={(e) => setFormData({...formData, unidad: e.target.value})}>
+                {units.map((u, idx) => <option key={`${u}-${idx}`} value={u}>{u}</option>)}
+              </select>
+            </div>
             <div><label className="block text-sm font-medium text-slate-700 mb-1">Stock</label><input type="number" min="0" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.stock} onChange={(e) => setFormData({...formData, stock: parseInt(e.target.value) || 0})} /></div>
             <div><label className="block text-sm font-medium text-slate-700 mb-1">Costo Unit.</label><div className="relative"><span className="absolute left-3 top-2 text-slate-400">C$</span><input type="number" min="0" step="0.01" className="w-full p-2 pl-8 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.costo} onChange={(e) => setFormData({...formData, costo: parseFloat(e.target.value) || 0})} /></div></div>
           </div>
@@ -341,6 +389,53 @@ const ProductHistoryModal = ({ isOpen, onClose, product, history }) => {
               </tbody>
             </table>
           )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- COMPONENTE DE CONFIGURACIÓN DINÁMICA ---
+const SettingsView = ({ categories, units, onAddCategory, onDeleteCategory, onAddUnit, onDeleteUnit }) => {
+  const [newCat, setNewCat] = useState("");
+  const [newUnit, setNewUnit] = useState("");
+
+  const handleAddCat = (e) => { e.preventDefault(); if(newCat) { onAddCategory(newCat); setNewCat(""); } };
+  const handleAddUnit = (e) => { e.preventDefault(); if(newUnit) { onAddUnit(newUnit); setNewUnit(""); } };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden">
+      <div className="p-4 border-b border-slate-100"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Settings size={20} className="text-gray-600"/> Configuración del Sistema</h3></div>
+      <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="flex flex-col h-full">
+           <h4 className="font-bold text-slate-700 mb-3">Categorías de Productos</h4>
+           <form onSubmit={handleAddCat} className="flex gap-2 mb-4">
+             <input className="flex-1 p-2 border rounded-lg text-sm" placeholder="Nueva Categoría..." value={newCat} onChange={e => setNewCat(e.target.value.toUpperCase())} />
+             <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg"><Plus size={18}/></button>
+           </form>
+           <div className="flex-1 overflow-y-auto border rounded-lg bg-slate-50 p-2 space-y-1 max-h-96">
+             {categories.map((cat, idx) => (
+               <div key={`${cat}-${idx}`} className="flex justify-between items-center p-2 bg-white rounded border border-slate-100">
+                 <span className="text-sm font-medium">{cat}</span>
+                 <button onClick={() => onDeleteCategory(cat)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
+               </div>
+             ))}
+           </div>
+        </div>
+        <div className="flex flex-col h-full">
+           <h4 className="font-bold text-slate-700 mb-3">Unidades de Medida</h4>
+           <form onSubmit={handleAddUnit} className="flex gap-2 mb-4">
+             <input className="flex-1 p-2 border rounded-lg text-sm" placeholder="Nueva Unidad..." value={newUnit} onChange={e => setNewUnit(e.target.value.toUpperCase())} />
+             <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg"><Plus size={18}/></button>
+           </form>
+           <div className="flex-1 overflow-y-auto border rounded-lg bg-slate-50 p-2 space-y-1 max-h-96">
+             {units.map((unit, idx) => (
+               <div key={`${unit}-${idx}`} className="flex justify-between items-center p-2 bg-white rounded border border-slate-100">
+                 <span className="text-sm font-medium">{unit}</span>
+                 <button onClick={() => onDeleteUnit(unit)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
+               </div>
+             ))}
+           </div>
         </div>
       </div>
     </div>
@@ -442,7 +537,7 @@ const RequisitionsView = ({ inventoryData, addToast, isAdmin }) => {
             <tr>
               <th>Código</th>
               <th>Material</th>
-              <th>Stock Actual</th> <!-- NUEVO -->
+              <th>Stock Actual</th> 
               <th style="text-align: right">Costo Unit.</th>
               <th style="text-align: right">Costo Unit. (+IVA)</th>
             </tr>
@@ -477,7 +572,7 @@ const RequisitionsView = ({ inventoryData, addToast, isAdmin }) => {
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden">
        <div className="p-4 border-b border-slate-100 flex justify-between items-center">
           <div className="flex gap-4 items-center"><h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><ShoppingCart className="text-emerald-600"/> Requisiciones</h3><span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full">{requisitions.length} Items</span></div>
-          <div className="flex gap-2">{isAdmin && <button onClick={handleAutoFill} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 text-sm font-medium"><FilePlus size={16}/> Cargar Stock Bajo</button>}<button onClick={handlePrint} className="flex items-center gap-2 bg-slate-800 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 text-sm font-medium"><Printer size={16}/> Imprimir Orden</button></div>
+          <div className="flex gap-2">{isAdmin && <button onClick={handleAutoFill} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 text-sm font-medium"><FilePlus size={16}/> Cargar Stock Bajo</button>}<button onClick={handlePrint} className="flex items-center gap-2 bg-slate-800 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 text-sm font-medium"><Printer size={16}/> Imprimir Lista</button></div>
        </div>
        <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
           <div className="w-full lg:w-1/3 border-r border-slate-100 flex flex-col bg-slate-50/50">
@@ -532,6 +627,10 @@ export default function InventoryDashboard() {
   const [authError, setAuthError] = useState(null);
   const [myDeviceName, setMyDeviceName] = useState("");
   const [userProfile, setUserProfile] = useState(null); 
+  
+  // ESTADOS DE CONFIGURACIÓN DINÁMICA
+  const [categoriesList, setCategoriesList] = useState([]);
+  const [unitsList, setUnitsList] = useState([]);
 
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -588,14 +687,49 @@ export default function InventoryDashboard() {
       if (!data) { const updates = {}; INITIAL_DATA.forEach(item => { updates[item.codigo] = item; }); update(inventoryRef, updates); } 
       else { setInventoryData(Object.values(data)); setLoading(false); }
     });
+    
+    // b) Historial
     const historyRef = ref(db, HISTORY_PATH);
     const unsubscribeHist = onValue(historyRef, (snapshot) => { const data = snapshot.val(); setHistoryData(data ? Object.values(data).sort((a, b) => b.timestamp - a.timestamp) : []); });
+    
+    // c) Proveedores
     const suppliersRef = ref(db, SUPPLIERS_PATH);
     const unsubscribeSup = onValue(suppliersRef, (snapshot) => { const data = snapshot.val(); setSuppliersData(data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : []); });
-    const settingsRef = ref(db, `${SETTINGS_PATH}/logo`);
-    const unsubscribeLogo = onValue(settingsRef, (snapshot) => { if (snapshot.exists()) setLogoUrl(snapshot.val()); });
+    
+    // d) Logo
+    const logoRef = ref(db, `${SETTINGS_PATH}/logo`);
+    const unsubscribeLogo = onValue(logoRef, (snapshot) => { if (snapshot.exists()) setLogoUrl(snapshot.val()); });
 
-    // PRESENCIA
+    // e) CONFIGURACIÓN (Categorías y Unidades)
+    const catRef = ref(db, CATEGORIES_PATH);
+    const unsubscribeCat = onValue(catRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) { set(ref(db, CATEGORIES_PATH), DEFAULT_CATEGORIES_LIST); } 
+      else { 
+        // Normalizar datos (soportar strings y objetos)
+        const list = Object.entries(data).map(([k, v]) => ({
+            id: k,
+            name: (typeof v === 'object' && v.name) ? v.name : v
+        }));
+        setCategoriesList(list); 
+      }
+    });
+
+    const unitsRef = ref(db, UNITS_PATH);
+    const unsubscribeUnits = onValue(unitsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) { set(ref(db, UNITS_PATH), DEFAULT_UNITS_LIST); }
+      else { 
+        // Normalizar datos
+        const list = Object.entries(data).map(([k, v]) => ({
+            id: k,
+            name: (typeof v === 'object' && v.name) ? v.name : v
+        }));
+        setUnitsList(list); 
+      }
+    });
+
+    // f) PRESENCIA
     const connectedRef = ref(db, ".info/connected");
     const presenceRef = ref(db, PRESENCE_PATH);
     
@@ -616,7 +750,11 @@ export default function InventoryDashboard() {
     });
     const unsubscribePresenceCount = onValue(presenceRef, (snap) => { if (snap.exists()) setOnlineUsersList(Object.values(snap.val())); else setOnlineUsersList([]); });
 
-    return () => { unsubscribeInv(); unsubscribeHist(); unsubscribeSup(); unsubscribeLogo(); unsubscribeConnected(); unsubscribePresenceCount(); };
+    return () => { 
+      unsubscribeInv(); unsubscribeHist(); unsubscribeSup(); unsubscribeLogo(); 
+      unsubscribeCat(); unsubscribeUnits();
+      unsubscribeConnected(); unsubscribePresenceCount(); 
+    };
   }, [user, userProfile]);
 
   const handleChangeDeviceName = () => { setIsProfileModalOpen(true); };
@@ -638,6 +776,35 @@ export default function InventoryDashboard() {
       const reader = new FileReader();
       reader.onloadend = () => { set(ref(db, `${SETTINGS_PATH}/logo`), reader.result).then(() => addToast("Logo actualizado", "success")); };
       reader.readAsDataURL(file);
+    }
+  };
+
+  // --- HANDLERS PARA CONFIGURACIÓN DINÁMICA ---
+  const handleAddCategory = (cat) => {
+    push(ref(db, CATEGORIES_PATH), { name: cat });
+  };
+  const handleDeleteCategory = (catName) => {
+    // Buscar el ID basado en el nombre (ya que tenemos la lista con IDs)
+    const item = categoriesList.find(c => c.name === catName);
+    if (item && item.id) {
+       remove(ref(db, `${CATEGORIES_PATH}/${item.id}`))
+         .then(() => addToast("Categoría eliminada", "success"))
+         .catch(() => addToast("Error al eliminar", "error"));
+    } else {
+       addToast("No se pudo eliminar (elemento predeterminado o error)", "warning");
+    }
+  };
+  const handleAddUnit = (unit) => {
+     push(ref(db, UNITS_PATH), { name: unit });
+  };
+  const handleDeleteUnit = (unitName) => {
+    const item = unitsList.find(u => u.name === unitName);
+    if (item && item.id) {
+       remove(ref(db, `${UNITS_PATH}/${item.id}`))
+         .then(() => addToast("Unidad eliminada", "success"))
+         .catch(() => addToast("Error al eliminar", "error"));
+    } else {
+       addToast("No se pudo eliminar", "warning");
     }
   };
 
@@ -675,6 +842,11 @@ export default function InventoryDashboard() {
   const handleOpenCreateModal = () => { setEditingItem(null); setIsFormModalOpen(true); };
   const handleOpenEditModal = (item) => { setEditingItem(item); setIsFormModalOpen(true); };
   const handleOpenProductHistory = (item) => { setHistoryItem(item); setIsHistoryModalOpen(true); };
+
+  // --- LÓGICA DE CATEGORÍAS PARA FILTROS ---
+  const configCategories = categoriesList.map(c => c.name); 
+  const inventoryCategories = [...new Set(inventoryData.map(item => item.categoria).filter(Boolean))];
+  const availableCategories = ['Todas', ...new Set([...configCategories, ...inventoryCategories])].sort();
 
   const filteredData = useMemo(() => {
     return inventoryData.filter(item => {
@@ -727,10 +899,12 @@ export default function InventoryDashboard() {
           </div>
         </div>
         <nav className="flex-1 px-4 py-6 space-y-2">
-          {[{id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'}, {id: 'inventory', icon: Package, label: 'Inventario'}, {id: 'requisitions', icon: ShoppingCart, label: 'Requisiciones'}, {id: 'suppliers', icon: Truck, label: 'Proveedores'}, {id: 'history', icon: History, label: 'Historial'}].map(item => (
-            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${activeTab === item.id ? 'bg-emerald-700 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-800'}`}>
-              <item.icon size={20} />{sidebarOpen && <span>{item.label}</span>}
-            </button>
+          {[{id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'}, {id: 'inventory', icon: Package, label: 'Inventario'}, {id: 'requisitions', icon: ShoppingCart, label: 'Requisiciones'}, {id: 'suppliers', icon: Truck, label: 'Proveedores'}, {id: 'history', icon: History, label: 'Historial'}, {id: 'settings', icon: Settings, label: 'Configuración', adminOnly: true}].map(item => (
+            (!item.adminOnly || isAdmin) && (
+              <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${activeTab === item.id ? 'bg-emerald-700 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-800'}`}>
+                <item.icon size={20} />{sidebarOpen && <span>{item.label}</span>}
+              </button>
+            )
           ))}
         </nav>
         <div className="p-4 border-t border-emerald-800 space-y-3">
@@ -756,7 +930,7 @@ export default function InventoryDashboard() {
       <main className="flex-1 overflow-y-auto p-4 md:p-8">
         <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">{activeTab === 'dashboard' ? 'Visión General' : activeTab === 'inventory' ? 'Inventario' : activeTab === 'requisitions' ? 'Requisiciones y Pedidos' : activeTab === 'suppliers' ? 'Proveedores' : 'Historial'}</h2>
+            <h2 className="text-2xl font-bold text-slate-800">{activeTab === 'dashboard' ? 'Visión General' : activeTab === 'inventory' ? 'Inventario' : activeTab === 'requisitions' ? 'Requisiciones y Pedidos' : activeTab === 'suppliers' ? 'Proveedores' : activeTab === 'settings' ? 'Configuración' : 'Historial'}</h2>
             <div className="flex items-center gap-2 text-slate-500 text-sm"><Wifi size={14} className="text-emerald-500" /><span>En línea • {isAdmin ? 'Edición Habilitada' : 'Solo Lectura'}</span></div>
           </div>
           <button onClick={() => setIsConnectedUsersModalOpen(true)} className="flex items-center gap-4 text-sm font-medium text-slate-500 bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors">
@@ -773,11 +947,8 @@ export default function InventoryDashboard() {
               <Card title="Valor (c/IVA)" value={`C$${totalValue.toLocaleString('en-US', {minimumFractionDigits: 2})}`} icon={DollarSign} color="indigo" />
               <Card title="Agotados" value={inventoryData.filter(i => i.stock <= 0).length} icon={AlertTriangle} color="red" trend="down" />
             </div>
-            
-            {/* GRÁFICOS: AHORA INCLUYE ANÁLISIS DE ROTACIÓN */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
-                {/* Gráfico 1: Stock por Categoría */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-80 flex flex-col">
                   <h3 className="text-lg font-bold text-slate-800 mb-4">Stock por Categoría</h3>
                   <div className="flex-1 w-full min-h-0">
@@ -792,12 +963,8 @@ export default function InventoryDashboard() {
                     </ResponsiveContainer>
                   </div>
                 </div>
-
-                {/* Gráfico 2: Análisis de Rotación (NUEVO) */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-80 flex flex-col">
-                  <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <Activity size={20} className="text-purple-600"/> Análisis de Rotación (Top 5 Salidas)
-                  </h3>
+                  <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Activity size={20} className="text-purple-600"/> Análisis de Rotación (Top 5 Salidas)</h3>
                   <div className="flex-1 w-full min-h-0">
                      {rotationData.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
@@ -815,8 +982,6 @@ export default function InventoryDashboard() {
                   </div>
                 </div>
               </div>
-
-              {/* Columna Derecha: Stock Bajo */}
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-auto overflow-y-auto">
                 <h3 className="text-lg font-bold text-slate-800 mb-4">Stock Bajo</h3>
                 {inventoryData.filter(i => i.stock <= 5).sort((a,b)=>a.stock-b.stock).map((item, idx) => (
@@ -836,7 +1001,7 @@ export default function InventoryDashboard() {
             <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
               <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto flex-1">
                  <div className="relative w-full md:w-96"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder="Buscar..." className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
-                <div className="flex items-center gap-2 w-full md:w-auto"><Filter size={18} className="text-slate-400" /><select className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>{categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
+                <div className="flex items-center gap-2 w-full md:w-auto"><Filter size={18} className="text-slate-400" /><select className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>{availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => exportToCSV(filteredData, 'inventario')} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-lg font-medium shadow-sm"><Download size={20} /> <span className="hidden sm:inline">Exportar</span></button>
@@ -879,16 +1044,13 @@ export default function InventoryDashboard() {
                         {item.stock <= 0 ? <Badge type="danger">Agotado</Badge> : item.stock <= 5 ? <Badge type="warning">Bajo</Badge> : <Badge type="success">En Stock</Badge>}
                       </td>
                       <td className="p-4 text-center">
-                        <div className="flex justify-center gap-2">
-                           <button onClick={() => handleOpenProductHistory(item)} className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200" title="Ver Historial"><History size={18}/></button>
-                           {isAdmin && (
-                            <>
-                              <button onClick={() => handleOpenStockModal(item)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><PlusCircle size={18}/></button>
-                              <button onClick={() => handleOpenEditModal(item)} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100"><Pencil size={18}/></button>
-                              <button onClick={() => handleDeleteProduct(item.codigo)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={18}/></button>
-                            </>
-                           )}
-                        </div>
+                        {isAdmin ? (
+                          <div className="flex justify-center gap-2">
+                            <button onClick={() => handleOpenStockModal(item)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><PlusCircle size={18}/></button>
+                            <button onClick={() => handleOpenEditModal(item)} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100"><Pencil size={18}/></button>
+                            <button onClick={() => handleDeleteProduct(item.codigo)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={18}/></button>
+                          </div>
+                        ) : <span className="text-xs text-slate-400 italic">Solo Lectura</span>}
                       </td>
                     </tr>
                   ))}
@@ -930,6 +1092,24 @@ export default function InventoryDashboard() {
             </div>
           </div>
         )}
+
+        {/* NUEVA VISTA: SETTINGS (SOLO ADMIN) */}
+        {activeTab === 'settings' && isAdmin && (
+          <SettingsView 
+            categories={categoriesList.map(c => c.name)} 
+            units={unitsList.map(u => u.name)}
+            onAddCategory={(name) => push(ref(db, CATEGORIES_PATH), { name })}
+            onDeleteCategory={(name) => {
+              const item = categoriesList.find(c => c.name === name);
+              if (item) remove(ref(db, `${CATEGORIES_PATH}/${item.id}`));
+            }}
+            onAddUnit={(name) => push(ref(db, UNITS_PATH), { name })}
+            onDeleteUnit={(name) => {
+              const item = unitsList.find(u => u.name === name);
+              if (item) remove(ref(db, `${UNITS_PATH}/${item.id}`));
+            }}
+          />
+        )}
       </main>
 
       {/* TOASTS & MODALES */}
@@ -938,7 +1118,15 @@ export default function InventoryDashboard() {
       <ProfileSetupModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} onSave={handleSaveProfile} />
       <ConnectedUsersModal isOpen={isConnectedUsersModalOpen} onClose={() => setIsConnectedUsersModalOpen(false)} users={onlineUsersList} currentUserId={user?.uid} />
       <MovementModal isOpen={isStockModalOpen} onClose={() => setIsStockModalOpen(false)} item={selectedItem} onSave={handleUpdateStock} />
-      <ProductFormModal isOpen={isFormModalOpen} onClose={() => setIsFormModalOpen(false)} onSave={handleSaveProduct} categories={rawCategories} productToEdit={editingItem} />
+      {/* Pasar categorías y unidades DINÁMICAS al formulario */}
+      <ProductFormModal 
+        isOpen={isFormModalOpen} 
+        onClose={() => setIsFormModalOpen(false)} 
+        onSave={handleSaveProduct} 
+        categories={categoriesList.map(c => c.name)} 
+        units={unitsList.map(u => u.name)}
+        productToEdit={editingItem} 
+      />
       <ProductHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} product={historyItem} history={historyData} />
     </div>
   );
