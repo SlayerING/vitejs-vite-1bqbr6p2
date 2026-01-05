@@ -861,7 +861,8 @@ export default function InventoryDashboard() {
 
   const categories = ['Todas', ...new Set(inventoryData.map(item => item.categoria).filter(Boolean))];
   const rawCategories = [...new Set(inventoryData.map(item => item.categoria).filter(Boolean))].sort();
-  const totalValue = inventoryData.reduce((acc, item) => acc + (item.stock * parseFloat(item.costo || 0) * (item.aplicaIVA ? 1.15 : 1)), 0);
+  // TOTAL SIN IVA
+  const totalValue = inventoryData.reduce((acc, item) => acc + (item.stock * parseFloat(item.costo || 0)), 0);
 
   const rotationData = useMemo(() => {
     const rotation = {};
@@ -944,7 +945,7 @@ export default function InventoryDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <Card title="Total Productos" value={inventoryData.length} icon={Package} color="blue" />
               <Card title="Stock Total" value={inventoryData.reduce((acc, item) => acc + item.stock, 0)} icon={BarChartIcon} color="emerald" />
-              <Card title="Valor (c/IVA)" value={`C$${totalValue.toLocaleString('en-US', {minimumFractionDigits: 2})}`} icon={DollarSign} color="indigo" />
+              <Card title="Valor (Sin IVA)" value={`C$${totalValue.toLocaleString('en-US', {minimumFractionDigits: 2})}`} icon={DollarSign} color="indigo" />
               <Card title="Agotados" value={inventoryData.filter(i => i.stock <= 0).length} icon={AlertTriangle} color="red" trend="down" />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
