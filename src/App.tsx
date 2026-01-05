@@ -47,7 +47,11 @@ import {
   FileClock,
   Activity,
   QrCode,
-  Settings 
+  Settings,
+  Moon, 
+  Sun,
+  ChevronRight,
+  FileText // Icono para Cotizaciones
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -56,7 +60,8 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer
+  ResponsiveContainer,
+  Cell
 } from 'recharts';
 
 // --- FIREBASE IMPORTS ---
@@ -95,10 +100,18 @@ const DEFAULT_UNITS_LIST = [
   "UNIDADES", "JUEGOS", "GALONES", "LIBRAS", "METROS", "CAJAS", "LITROS", "PARES", "ROLLOS", "BOLSAS", "PIEZAS"
 ];
 
-// --- CONFIGURACIÓN DE SEGURIDAD ---
+const COST_CENTERS = [
+  "Mantenimiento General",
+  "Infraestructura",
+  "Administración",
+  "Producción",
+  "Ventas / Salida Cliente",
+  "Merma / Daño",
+  "Uso Interno"
+];
+
 const ADMIN_PIN = "2442"; 
 
-// --- FIREBASE SETUP ---
 const firebaseConfig = {
   apiKey: "AIzaSyC9Uu-ZhekT6xffjt-nTLi7vX6pqUJmpKY",
   authDomain: "control-isc.firebaseapp.com",
@@ -121,24 +134,35 @@ const SETTINGS_PATH = `artifacts/${appId}/public/data/settings`;
 const SUPPLIERS_PATH = `artifacts/${appId}/public/data/suppliers`; 
 const PRESENCE_PATH = `artifacts/${appId}/public/data/presence`;
 const REQUISITIONS_PATH = `artifacts/${appId}/public/data/requisitions`;
+const QUOTATIONS_PATH = `artifacts/${appId}/public/data/quotations`; // NUEVA RUTA PARA COTIZACIONES
 const CATEGORIES_PATH = `artifacts/${appId}/public/data/settings/categories`;
 const UNITS_PATH = `artifacts/${appId}/public/data/settings/units`;
 
-const COST_CENTERS = [
-  "Mantenimiento General",
-  "Infraestructura",
-  "Administración",
-  "Producción",
-  "Ventas / Salida Cliente",
-  "Merma / Daño",
-  "Uso Interno"
-];
-
+// --- HELPERS VISUALES ---
 const getDeviceType = () => {
   const ua = navigator.userAgent;
   if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return "Tablet";
   if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated/.test(ua)) return "Móvil";
   return "PC";
+};
+
+// Generador de colores pastel determinista para categorías
+const stringToColor = (str) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const h = Math.abs(hash) % 360;
+  return `hsl(${h}, 70%, 85%)`; // Pastel claro
+};
+
+const stringToDarkColor = (str) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const h = Math.abs(hash) % 360;
+  return `hsl(${h}, 60%, 25%)`; // Oscuro para texto sobre pastel o background dark mode
 };
 
 // --- COMPONENTES UI ---
@@ -150,52 +174,58 @@ const ToastContainer = ({ toasts, removeToast }) => {
         <div 
           key={toast.id} 
           className={`
-            pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border animate-in slide-in-from-right-10 fade-in duration-300
-            ${toast.type === 'success' ? 'bg-white border-emerald-200 text-emerald-800' : ''}
-            ${toast.type === 'error' ? 'bg-white border-red-200 text-red-800' : ''}
-            ${toast.type === 'info' ? 'bg-white border-blue-200 text-blue-800' : ''}
-            ${toast.type === 'warning' ? 'bg-white border-amber-200 text-amber-800' : ''}
+            pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border backdrop-blur-md animate-in slide-in-from-right-10 fade-in duration-300
+            ${toast.type === 'success' ? 'bg-emerald-50/90 border-emerald-200 text-emerald-800 dark:bg-emerald-900/80 dark:border-emerald-700 dark:text-emerald-100' : ''}
+            ${toast.type === 'error' ? 'bg-red-50/90 border-red-200 text-red-800 dark:bg-red-900/80 dark:border-red-700 dark:text-red-100' : ''}
+            ${toast.type === 'info' ? 'bg-blue-50/90 border-blue-200 text-blue-800 dark:bg-blue-900/80 dark:border-blue-700 dark:text-blue-100' : ''}
+            ${toast.type === 'warning' ? 'bg-amber-50/90 border-amber-200 text-amber-800 dark:bg-amber-900/80 dark:border-amber-700 dark:text-amber-100' : ''}
           `}
         >
-          {toast.type === 'success' && <CheckCircle size={20} className="text-emerald-500" />}
-          {toast.type === 'error' && <XCircle size={20} className="text-red-500" />}
-          {toast.type === 'info' && <Info size={20} className="text-blue-500" />}
-          {toast.type === 'warning' && <AlertTriangle size={20} className="text-amber-500" />}
+          {toast.type === 'success' && <CheckCircle size={20} />}
+          {toast.type === 'error' && <XCircle size={20} />}
+          {toast.type === 'info' && <Info size={20} />}
+          {toast.type === 'warning' && <AlertTriangle size={20} />}
           <div className="flex-1"><p className="text-sm font-medium">{toast.message}</p></div>
-          <button onClick={() => removeToast(toast.id)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+          <button onClick={() => removeToast(toast.id)} className="opacity-60 hover:opacity-100"><X size={16} /></button>
         </div>
       ))}
     </div>
   );
 };
 
-const Card = ({ title, value, icon: Icon, trend, color = "blue", subtitle }) => (
-  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
-    <div className="flex justify-between items-start">
-      <div>
-        <p className="text-slate-500 text-sm font-medium mb-1">{title}</p>
-        <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
-        {subtitle && <p className="text-xs text-slate-400 mt-1">{subtitle}</p>}
+const Card = ({ title, value, icon: Icon, color = "blue", subtitle, isDarkMode }) => {
+  const gradients = {
+    blue: "from-blue-500 to-blue-600",
+    emerald: "from-emerald-500 to-emerald-600",
+    indigo: "from-indigo-500 to-violet-600",
+    red: "from-rose-500 to-red-600"
+  };
+  
+  const bgGradient = gradients[color] || gradients.blue;
+
+  return (
+    <div className={`relative overflow-hidden p-6 rounded-2xl shadow-sm border transition-all duration-300 hover:shadow-lg hover:scale-[1.02] ${isDarkMode ? 'bg-slate-800/60 border-slate-700' : 'bg-white/80 border-slate-100'} backdrop-blur-sm`}>
+      <div className="flex justify-between items-start z-10 relative">
+        <div>
+          <p className={`text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{title}</p>
+          <h3 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{value}</h3>
+          {subtitle && <p className={`text-xs mt-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{subtitle}</p>}
+        </div>
+        <div className={`p-3 rounded-xl bg-gradient-to-br ${bgGradient} text-white shadow-lg`}>
+          <Icon size={24} />
+        </div>
       </div>
-      <div className={`p-3 rounded-lg bg-${color}-50 text-${color}-600`}>
-        <Icon size={24} />
-      </div>
+      <div className={`absolute -bottom-4 -right-4 w-24 h-24 rounded-full opacity-10 bg-gradient-to-br ${bgGradient}`}></div>
     </div>
-    {trend && (
-      <div className={`mt-4 text-xs font-medium ${trend === 'up' ? 'text-green-600' : 'text-red-600'} flex items-center`}>
-        {trend === 'up' ? <TrendingUp size={14} className="mr-1" /> : <TrendingDown size={14} className="mr-1" />}
-        {trend === 'up' ? 'Positivo' : 'Atención'}
-      </div>
-    )}
-  </div>
-);
+  );
+};
 
 const Badge = ({ children, type }) => {
   const styles = {
-    success: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    warning: "bg-amber-100 text-amber-700 border-amber-200",
-    danger: "bg-rose-100 text-rose-700 border-rose-200",
-    neutral: "bg-slate-100 text-slate-600 border-slate-200"
+    success: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800",
+    warning: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800",
+    danger: "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800",
+    neutral: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
   };
   return (
     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles[type] || styles.neutral}`}>
@@ -204,7 +234,14 @@ const Badge = ({ children, type }) => {
   );
 };
 
-const AdminLoginModal = ({ isOpen, onClose, onLogin, addToast }) => {
+const StockBar = ({ stock, min = 0, max = 100 }) => {
+  return (
+    <span className={`text-sm font-bold ${stock <= 5 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-400'}`}>{stock}</span>
+  );
+};
+
+// --- LOGIN MODAL ---
+const AdminLoginModal = ({ isOpen, onClose, onLogin, addToast, isDarkMode }) => {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
   if (!isOpen) return null;
@@ -215,15 +252,15 @@ const AdminLoginModal = ({ isOpen, onClose, onLogin, addToast }) => {
   };
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95">
-        <div className="p-6 text-center">
-          <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4"><Lock size={32} className="text-blue-600" /></div>
-          <h3 className="text-xl font-bold text-slate-800 mb-2">Acceso Administrador</h3>
-          <p className="text-sm text-slate-500 mb-6">Ingresa el PIN para modificar datos.</p>
+      <div className={`rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 ${isDarkMode ? 'bg-slate-800' : 'bg-white'}`}>
+        <div className="p-8 text-center">
+          <div className="mx-auto w-16 h-16 bg-blue-100/20 rounded-full flex items-center justify-center mb-4"><Lock size={32} className="text-blue-500" /></div>
+          <h3 className={`text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Acceso Administrador</h3>
+          <p className={`text-sm mb-6 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Ingresa el PIN para modificar datos.</p>
           <form onSubmit={handleSubmit}>
-            <input type="password" className={`w-full text-center text-2xl tracking-widest p-3 border rounded-lg focus:outline-none focus:ring-2 ${error ? 'border-red-500 focus:ring-red-200' : 'border-slate-300 focus:ring-blue-500'}`} placeholder="••••" maxLength={4} autoFocus value={pin} onChange={(e) => setPin(e.target.value)} />
+            <input type="password" className={`w-full text-center text-2xl tracking-widest p-3 border rounded-xl focus:outline-none focus:ring-2 transition-all ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white focus:ring-blue-500' : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-blue-500'} ${error ? 'border-red-500 ring-1 ring-red-500' : ''}`} placeholder="••••" maxLength={4} autoFocus value={pin} onChange={(e) => setPin(e.target.value)} />
             {error && <p className="text-red-500 text-xs mt-2">PIN incorrecto</p>}
-            <div className="flex gap-3 mt-6"><button type="button" onClick={onClose} className="flex-1 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button><button type="submit" className="flex-1 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium">Entrar</button></div>
+            <div className="flex gap-3 mt-6"><button type="button" onClick={onClose} className={`flex-1 py-2.5 rounded-lg transition-colors ${isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-100'}`}>Cancelar</button><button type="submit" className="flex-1 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium shadow-lg shadow-blue-900/20">Entrar</button></div>
           </form>
         </div>
       </div>
@@ -231,7 +268,7 @@ const AdminLoginModal = ({ isOpen, onClose, onLogin, addToast }) => {
   );
 };
 
-const ProfileSetupModal = ({ isOpen, onClose, onSave }) => {
+const ProfileSetupModal = ({ isOpen, onClose, onSave, isDarkMode }) => {
   const [name, setName] = useState("");
   const [device, setDevice] = useState("");
   const [type, setType] = useState(getDeviceType());
@@ -239,16 +276,16 @@ const ProfileSetupModal = ({ isOpen, onClose, onSave }) => {
   if (!isOpen) return null;
   const handleSubmit = (e) => { e.preventDefault(); if (name && device) { onSave({ name, device, type }); onClose(); } };
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-emerald-900/90 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className={`rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 ${isDarkMode ? 'bg-slate-800' : 'bg-white'}`}>
         <div className="p-8 text-center">
-          <div className="mx-auto w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-6"><User size={40} className="text-emerald-600" /></div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">¡Bienvenido al Sistema!</h2>
-          <p className="text-slate-500 mb-8">Para que todos sepan quién está conectado, por favor identifícate.</p>
+          <div className="mx-auto w-20 h-20 bg-emerald-100/20 rounded-full flex items-center justify-center mb-6"><User size={40} className="text-emerald-500" /></div>
+          <h2 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>¡Bienvenido al Sistema!</h2>
+          <p className={`mb-8 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Para que todos sepan quién está conectado, por favor identifícate.</p>
           <form onSubmit={handleSubmit} className="space-y-4 text-left">
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">Tu Nombre</label><input type="text" className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="Ej. Juan Pérez" autoFocus required value={name} onChange={(e) => setName(e.target.value)} /></div>
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">Nombre del Dispositivo</label><input type="text" className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none" placeholder="Ej. Samsung J9, Laptop Bodega..." required value={device} onChange={(e) => setDevice(e.target.value)} /><p className="text-xs text-slate-400 mt-1">Así aparecerás en la lista de conectados.</p></div>
-            <button type="submit" className="w-full py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-colors mt-4">Comenzar a trabajar</button>
+            <div><label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Tu Nombre</label><input type="text" className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`} placeholder="Ej. Juan Pérez" autoFocus required value={name} onChange={(e) => setName(e.target.value)} /></div>
+            <div><label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Nombre del Dispositivo</label><input type="text" className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`} placeholder="Ej. Samsung J9, Laptop Bodega..." required value={device} onChange={(e) => setDevice(e.target.value)} /><p className="text-xs text-slate-400 mt-1">Así aparecerás en la lista de conectados.</p></div>
+            <button type="submit" className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20 mt-4">Comenzar a trabajar</button>
           </form>
         </div>
       </div>
@@ -256,49 +293,63 @@ const ProfileSetupModal = ({ isOpen, onClose, onSave }) => {
   );
 };
 
-const ConnectedUsersModal = ({ isOpen, onClose, users, currentUserId }) => {
+const ConnectedUsersModal = ({ isOpen, onClose, users, currentUserId, isDarkMode }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[50] flex items-start justify-end p-4 pt-20 pointer-events-none">
-      <div className="bg-white rounded-xl shadow-2xl w-72 overflow-hidden pointer-events-auto border border-slate-200 animate-in slide-in-from-right-10 fade-in">
-        <div className="p-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center"><h3 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Users size={16} className="text-blue-500"/> Dispositivos Conectados</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16}/></button></div>
-        <div className="max-h-60 overflow-y-auto p-2 space-y-1">{users.map((u, idx) => { const isMe = u.user === currentUserId; return (<div key={idx} className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${isMe ? 'bg-blue-50 border border-blue-100' : 'hover:bg-slate-50'}`}><div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isMe ? 'bg-blue-200 text-blue-700' : 'bg-slate-200 text-slate-600'}`}>{u.type === 'Móvil' ? <Smartphone size={14}/> : <Monitor size={14}/>}</div><div className="flex-1 min-w-0"><p className="text-sm font-bold text-slate-800 truncate">{u.name || 'Usuario'}{isMe && <span className="ml-1 text-xs font-normal text-blue-600">(Tú)</span>}</p><p className="text-xs text-slate-500 truncate">{u.deviceName || 'Dispositivo'}</p></div><div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></div></div>); })}</div>
+      <div className={`rounded-xl shadow-2xl w-72 overflow-hidden pointer-events-auto border animate-in slide-in-from-right-10 fade-in ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+        <div className={`p-3 border-b flex justify-between items-center ${isDarkMode ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-100'}`}><h3 className={`font-bold text-sm flex items-center gap-2 ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}><Users size={16} className="text-blue-500"/> Dispositivos Conectados</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16}/></button></div>
+        <div className="max-h-60 overflow-y-auto p-2 space-y-1">{users.map((u, idx) => { const isMe = u.user === currentUserId; return (<div key={idx} className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${isMe ? (isDarkMode ? 'bg-blue-900/30 border border-blue-800' : 'bg-blue-50 border border-blue-100') : (isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-slate-50')}`}><div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isMe ? 'bg-blue-500 text-white' : (isDarkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-200 text-slate-600')}`}>{u.type === 'Móvil' ? <Smartphone size={14}/> : <Monitor size={14}/>}</div><div className="flex-1 min-w-0"><p className={`text-sm font-bold truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{u.name || 'Usuario'}{isMe && <span className="ml-1 text-xs font-normal text-blue-500">(Tú)</span>}</p><p className="text-xs text-slate-500 truncate">{u.deviceName || 'Dispositivo'}</p></div><div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></div></div>); })}</div>
       </div>
     </div>
   );
 };
 
-const MovementModal = ({ isOpen, onClose, item, onSave }) => {
+// --- MODALES DE ACCION GENERICOS ---
+const ModalWrapper = ({ children, isDarkMode, onClose, title }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className={`rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-slate-800'}`}>
+        <div className={`p-4 border-b flex justify-between items-center ${isDarkMode ? 'border-slate-700 bg-slate-800' : 'border-slate-100 bg-white'}`}>
+          <h3 className="font-bold flex items-center gap-2">{title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><XCircle size={24} /></button>
+        </div>
+        {children}
+      </div>
+  </div>
+);
+
+const MovementModal = ({ isOpen, onClose, item, onSave, isDarkMode }) => {
   const [amount, setAmount] = useState(1);
   const [type, setType] = useState('entry'); 
   const [destination, setDestination] = useState(""); 
   useEffect(() => { if (isOpen) setDestination(type === 'exit' ? COST_CENTERS[0] : "Proveedor / Compra"); }, [isOpen, type]);
   if (!isOpen || !item) return null;
   const handleSubmit = () => { const finalAmount = parseInt(amount, 10); if (isNaN(finalAmount) || finalAmount <= 0) return; onSave(item.codigo, finalAmount, type, item.stock, item.material, destination); setAmount(1); onClose(); };
+  
+  const inputClass = `w-full p-3 border rounded-xl focus:outline-none focus:ring-2 transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white focus:ring-blue-500' : 'bg-white border-slate-300 text-slate-800 focus:ring-blue-500'}`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-700">Registrar Movimiento</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><XCircle size={24} /></button></div>
-        <div className="p-6 space-y-4">
-          <div><p className="text-sm text-slate-500 mb-1">Material:</p><p className="font-semibold text-lg text-slate-800">{item.material}</p><p className="text-xs text-slate-400 font-mono">Stock Actual: {item.stock}</p></div>
-          <div className="flex gap-2 p-1 bg-slate-100 rounded-lg"><button className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${type === 'entry' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setType('entry')}><PlusCircle size={16} /> Entrada</button><button className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${type === 'exit' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`} onClick={() => setType('exit')}><MinusCircle size={16} /> Salida</button></div>
-          <div><label className="block text-sm font-medium text-slate-700 mb-1">Cantidad</label><input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-lg font-bold text-center" autoFocus /></div>
-          {type === 'exit' && (item.stock - amount < 0) && (<div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-start gap-2"><AlertTriangle size={16} className="mt-0.5" /> <span>Advertencia: El stock quedará en negativo ({item.stock - amount}).</span></div>)}
+    <ModalWrapper isDarkMode={isDarkMode} onClose={onClose} title="Registrar Movimiento">
+        <div className="p-6 space-y-5">
+          <div><p className={`text-sm mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Material:</p><p className="font-bold text-lg">{item.material}</p><p className="text-xs text-slate-400 font-mono">Stock Actual: {item.stock}</p></div>
+          <div className={`flex gap-2 p-1 rounded-xl ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
+            <button className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${type === 'entry' ? 'bg-white text-green-600 shadow-md transform scale-[1.02]' : 'text-slate-500 hover:text-slate-700'} ${isDarkMode && type === 'entry' ? '!bg-slate-700 !text-green-400' : ''}`} onClick={() => setType('entry')}><PlusCircle size={16} className="inline mr-2"/> Entrada</button>
+            <button className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${type === 'exit' ? 'bg-white text-red-600 shadow-md transform scale-[1.02]' : 'text-slate-500 hover:text-slate-700'} ${isDarkMode && type === 'exit' ? '!bg-slate-700 !text-red-400' : ''}`} onClick={() => setType('exit')}><MinusCircle size={16} className="inline mr-2"/> Salida</button>
+          </div>
+          <div><label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Cantidad</label><input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputClass} autoFocus /></div>
+          {type === 'exit' && (item.stock - amount < 0) && (<div className="p-3 bg-red-500/10 text-red-500 text-sm rounded-lg flex items-start gap-2 border border-red-500/20"><AlertTriangle size={16} className="mt-0.5" /> <span>Advertencia: Stock negativo ({item.stock - amount}).</span></div>)}
         </div>
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3"><button onClick={onClose} className="flex-1 px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition-colors">Cancelar</button><button onClick={handleSubmit} className={`flex-1 px-4 py-2 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${type === 'entry' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}><Save size={18} /> Confirmar</button></div>
-      </div>
-    </div>
+        <div className={`p-4 border-t flex gap-3 ${isDarkMode ? 'border-slate-700 bg-slate-800' : 'border-slate-100 bg-slate-50'}`}><button onClick={onClose} className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors ${isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-200'}`}>Cancelar</button><button onClick={handleSubmit} className={`flex-1 px-4 py-2.5 text-white font-medium rounded-lg shadow-lg transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2 ${type === 'entry' ? 'bg-green-600 hover:bg-green-700 shadow-green-900/20' : 'bg-red-600 hover:bg-red-700 shadow-red-900/20'}`}><Save size={18} /> Confirmar</button></div>
+    </ModalWrapper>
   );
 };
 
-const ProductFormModal = ({ isOpen, onClose, onSave, categories, units, productToEdit }) => {
+const ProductFormModal = ({ isOpen, onClose, onSave, categories, units, productToEdit, isDarkMode }) => {
   const [formData, setFormData] = useState({ codigo: '', material: '', categoria: '', unidad: '', stock: 0, costo: 0, aplicaIVA: true });
   useEffect(() => {
     if (isOpen) {
-      // Usar categorías/unidades pasadas como props
       const defaultCat = (categories && categories.length > 0) ? categories[0] : 'GENERAL';
       const defaultUnit = (units && units.length > 0) ? units[0] : 'UNIDADES';
-      
       if (productToEdit) {
         setFormData({
           codigo: productToEdit.codigo || '',
@@ -310,140 +361,66 @@ const ProductFormModal = ({ isOpen, onClose, onSave, categories, units, productT
           aplicaIVA: productToEdit.aplicaIVA !== undefined ? productToEdit.aplicaIVA : true
         });
       } else {
-        setFormData({ 
-          codigo: '', 
-          material: '', 
-          categoria: defaultCat, 
-          unidad: defaultUnit, 
-          stock: 0, 
-          costo: 0, 
-          aplicaIVA: true 
-        });
+        setFormData({ codigo: '', material: '', categoria: defaultCat, unidad: defaultUnit, stock: 0, costo: 0, aplicaIVA: true });
       }
     }
   }, [isOpen, productToEdit, categories, units]);
 
   if (!isOpen) return null;
   const handleSubmit = (e) => { e.preventDefault(); if (!formData.codigo || !formData.material) return; onSave(formData, !!productToEdit); onClose(); };
-  
+  const inputClass = `w-full p-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white focus:ring-blue-500' : 'bg-white border-slate-300 text-slate-800 focus:ring-blue-500'}`;
+  const labelClass = `block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-700 flex items-center gap-2">{productToEdit ? <Pencil size={20} className="text-blue-500"/> : <Package size={20} className="text-green-500" />} {productToEdit ? 'Editar Producto' : 'Nuevo Producto'}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><XCircle size={24} /></button></div>
+    <ModalWrapper isDarkMode={isDarkMode} onClose={onClose} title={productToEdit ? 'Editar Producto' : 'Nuevo Producto'}>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">Código *</label><input required type="text" disabled={!!productToEdit} placeholder="Ej. PE0999" className={`w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${productToEdit ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`} value={formData.codigo} onChange={(e) => setFormData({...formData, codigo: e.target.value})} /></div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Categoría</label>
-              <select className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" value={formData.categoria} onChange={(e) => setFormData({...formData, categoria: e.target.value})}>
-                {categories.map((cat, idx) => <option key={`${cat}-${idx}`} value={cat}>{cat}</option>)}
-              </select>
-            </div>
+            <div><label className={labelClass}>Código *</label><input required type="text" disabled={!!productToEdit} placeholder="Ej. PE0999" className={`${inputClass} ${productToEdit ? 'opacity-50 cursor-not-allowed' : ''}`} value={formData.codigo} onChange={(e) => setFormData({...formData, codigo: e.target.value})} /></div>
+            <div><label className={labelClass}>Categoría</label><select className={inputClass} value={formData.categoria} onChange={(e) => setFormData({...formData, categoria: e.target.value})}>{categories.map((cat, idx) => <option key={`${cat}-${idx}`} value={cat}>{cat}</option>)}</select></div>
           </div>
-          <div><label className="block text-sm font-medium text-slate-700 mb-1">Nombre del Material *</label><input required type="text" placeholder="Ej. Perno Hexagonal 3/4" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.material} onChange={(e) => setFormData({...formData, material: e.target.value})} /></div>
+          <div><label className={labelClass}>Nombre del Material *</label><input required type="text" placeholder="Ej. Perno Hexagonal 3/4" className={inputClass} value={formData.material} onChange={(e) => setFormData({...formData, material: e.target.value})} /></div>
           <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Unidad</label>
-              <select className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" value={formData.unidad} onChange={(e) => setFormData({...formData, unidad: e.target.value})}>
-                {units.map((u, idx) => <option key={`${u}-${idx}`} value={u}>{u}</option>)}
-              </select>
-            </div>
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">Stock</label><input type="number" min="0" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.stock} onChange={(e) => setFormData({...formData, stock: parseInt(e.target.value) || 0})} /></div>
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">Costo Unit.</label><div className="relative"><span className="absolute left-3 top-2 text-slate-400">C$</span><input type="number" min="0" step="0.01" className="w-full p-2 pl-8 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.costo} onChange={(e) => setFormData({...formData, costo: parseFloat(e.target.value) || 0})} /></div></div>
+            <div><label className={labelClass}>Unidad</label><select className={inputClass} value={formData.unidad} onChange={(e) => setFormData({...formData, unidad: e.target.value})}>{units.map((u, idx) => <option key={`${u}-${idx}`} value={u}>{u}</option>)}</select></div>
+            <div><label className={labelClass}>Stock</label><input type="number" min="0" className={inputClass} value={formData.stock} onChange={(e) => setFormData({...formData, stock: parseInt(e.target.value) || 0})} /></div>
+            <div><label className={labelClass}>Costo Unit.</label><div className="relative"><span className="absolute left-3 top-2.5 text-slate-400">C$</span><input type="number" min="0" step="0.01" className={`${inputClass} pl-9`} value={formData.costo} onChange={(e) => setFormData({...formData, costo: parseFloat(e.target.value) || 0})} /></div></div>
           </div>
-          <div className="flex items-center gap-2 pt-2"><input type="checkbox" id="ivaCheck" checked={formData.aplicaIVA} onChange={(e) => setFormData({...formData, aplicaIVA: e.target.checked})} className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300" /><label htmlFor="ivaCheck" className="text-sm font-medium text-slate-700 flex items-center gap-1">Aplica IVA (15%)</label></div>
-          <div className="pt-4 flex gap-3"><button type="button" onClick={onClose} className="flex-1 px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button><button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 rounded-lg transition-colors flex items-center justify-center gap-2"><Save size={18} /> {productToEdit ? 'Actualizar' : 'Guardar'}</button></div>
+          <div className="flex items-center gap-2 pt-2"><input type="checkbox" id="ivaCheck" checked={formData.aplicaIVA} onChange={(e) => setFormData({...formData, aplicaIVA: e.target.checked})} className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300" /><label htmlFor="ivaCheck" className={labelClass}>Aplica IVA (15%)</label></div>
+          <div className="pt-4 flex gap-3"><button type="button" onClick={onClose} className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors ${isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-200'}`}>Cancelar</button><button type="submit" className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-medium hover:bg-blue-700 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"><Save size={18} /> {productToEdit ? 'Actualizar' : 'Guardar'}</button></div>
         </form>
-      </div>
-    </div>
+    </ModalWrapper>
   );
 };
 
-// --- MODAL KARDEX (HISTORIAL INDIVIDUAL) ---
-const ProductHistoryModal = ({ isOpen, onClose, product, history }) => {
+const ProductHistoryModal = ({ isOpen, onClose, product, history, isDarkMode }) => {
   if (!isOpen || !product) return null;
   const productHistory = history.filter(h => h.codigo === product.codigo);
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[80vh] animate-in zoom-in-95">
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <div><h3 className="font-bold text-slate-800 flex items-center gap-2"><FileClock size={20} className="text-purple-600"/> Kardex / Historial</h3><p className="text-sm text-slate-500">{product.material} ({product.codigo})</p></div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
-        </div>
-        <div className="overflow-y-auto p-4 flex-1">
-          {productHistory.length === 0 ? (<div className="text-center py-10 text-slate-400 italic">No hay movimientos registrados para este producto.</div>) : (
-            <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-slate-50 text-slate-600 sticky top-0">
-                <tr><th className="p-3 border-b">Fecha</th><th className="p-3 border-b text-center">Tipo</th><th className="p-3 border-b text-right">Cant.</th><th className="p-3 border-b text-right">Saldo</th><th className="p-3 border-b">Detalle / Usuario</th></tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
+    <ModalWrapper isDarkMode={isDarkMode} onClose={onClose} title="Kardex / Historial">
+        <div className="p-4 border-b flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50"><div className="flex items-center gap-2"><div className={`p-2 rounded-lg ${isDarkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-50 text-purple-600'}`}><FileClock size={20}/></div><div><p className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{product.material}</p><p className="text-xs text-slate-500">{product.codigo}</p></div></div></div>
+        <div className="overflow-y-auto p-0 max-h-[50vh]">
+          {productHistory.length === 0 ? (<div className="text-center py-10 text-slate-400 italic">No hay movimientos registrados.</div>) : (
+            <table className={`w-full text-left text-sm border-collapse ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+              <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}><tr><th className="p-3 border-b border-slate-200 dark:border-slate-700">Fecha</th><th className="p-3 border-b border-slate-200 dark:border-slate-700 text-center">Tipo</th><th className="p-3 border-b border-slate-200 dark:border-slate-700 text-right">Cant.</th><th className="p-3 border-b border-slate-200 dark:border-slate-700 text-right">Saldo</th><th className="p-3 border-b border-slate-200 dark:border-slate-700">Usuario</th></tr></thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                 {productHistory.map((log, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="p-3 font-mono text-xs">{log.fecha}</td>
-                    <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${log.tipo === 'Entrada' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{log.tipo}</span></td>
+                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                    <td className="p-3 font-mono text-xs opacity-70">{log.fecha.split(',')[0]}</td>
+                    <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${log.tipo === 'Entrada' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400'}`}>{log.tipo}</span></td>
                     <td className="p-3 text-right font-bold">{log.cantidad}</td>
-                    <td className="p-3 text-right text-slate-500">{log.stockNuevo}</td>
-                    <td className="p-3 text-xs"><div className="font-medium text-slate-700">{log.usuario || 'Admin'}</div><div className="text-slate-400">{log.destino || '-'}</div></td>
+                    <td className="p-3 text-right opacity-70">{log.stockNuevo}</td>
+                    <td className="p-3 text-xs truncate max-w-[100px]">{log.usuario || 'Admin'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </div>
-      </div>
-    </div>
-  );
-};
-
-// --- COMPONENTE DE CONFIGURACIÓN DINÁMICA ---
-const SettingsView = ({ categories, units, onAddCategory, onDeleteCategory, onAddUnit, onDeleteUnit }) => {
-  const [newCat, setNewCat] = useState("");
-  const [newUnit, setNewUnit] = useState("");
-
-  const handleAddCat = (e) => { e.preventDefault(); if(newCat) { onAddCategory(newCat); setNewCat(""); } };
-  const handleAddUnit = (e) => { e.preventDefault(); if(newUnit) { onAddUnit(newUnit); setNewUnit(""); } };
-
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden">
-      <div className="p-4 border-b border-slate-100"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Settings size={20} className="text-gray-600"/> Configuración del Sistema</h3></div>
-      <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="flex flex-col h-full">
-           <h4 className="font-bold text-slate-700 mb-3">Categorías de Productos</h4>
-           <form onSubmit={handleAddCat} className="flex gap-2 mb-4">
-             <input className="flex-1 p-2 border rounded-lg text-sm" placeholder="Nueva Categoría..." value={newCat} onChange={e => setNewCat(e.target.value.toUpperCase())} />
-             <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg"><Plus size={18}/></button>
-           </form>
-           <div className="flex-1 overflow-y-auto border rounded-lg bg-slate-50 p-2 space-y-1 max-h-96">
-             {categories.map((cat, idx) => (
-               <div key={`${cat}-${idx}`} className="flex justify-between items-center p-2 bg-white rounded border border-slate-100">
-                 <span className="text-sm font-medium">{cat}</span>
-                 <button onClick={() => onDeleteCategory(cat)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
-               </div>
-             ))}
-           </div>
-        </div>
-        <div className="flex flex-col h-full">
-           <h4 className="font-bold text-slate-700 mb-3">Unidades de Medida</h4>
-           <form onSubmit={handleAddUnit} className="flex gap-2 mb-4">
-             <input className="flex-1 p-2 border rounded-lg text-sm" placeholder="Nueva Unidad..." value={newUnit} onChange={e => setNewUnit(e.target.value.toUpperCase())} />
-             <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg"><Plus size={18}/></button>
-           </form>
-           <div className="flex-1 overflow-y-auto border rounded-lg bg-slate-50 p-2 space-y-1 max-h-96">
-             {units.map((unit, idx) => (
-               <div key={`${unit}-${idx}`} className="flex justify-between items-center p-2 bg-white rounded border border-slate-100">
-                 <span className="text-sm font-medium">{unit}</span>
-                 <button onClick={() => onDeleteUnit(unit)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
-               </div>
-             ))}
-           </div>
-        </div>
-      </div>
-    </div>
+    </ModalWrapper>
   );
 };
 
 // --- COMPONENTE DE PROVEEDORES ---
-const SuppliersView = ({ isAdmin, suppliersData, inventoryData, addToast }) => {
+const SuppliersView = ({ isAdmin, suppliersData, inventoryData, addToast, isDarkMode }) => {
   const [activeTab, setActiveTab] = useState('list');
   const [newSupplier, setNewSupplier] = useState({ nombre: '', contacto: '', telefono: '' });
   const [selectedProduct, setSelectedProduct] = useState('');
@@ -452,30 +429,180 @@ const SuppliersView = ({ isAdmin, suppliersData, inventoryData, addToast }) => {
   const handleDeleteSupplier = async (id) => { if(window.confirm("¿Borrar proveedor?")) { try { await remove(ref(db, `${SUPPLIERS_PATH}/${id}`)); addToast("Proveedor eliminado", "success"); } catch (e) { addToast("Error al eliminar", "error"); } } };
   const addComparisonRow = () => setComparisonData([...comparisonData, { supplierId: '', price: 0 }]);
   const updateComparisonRow = (idx, field, value) => { const newData = [...comparisonData]; newData[idx][field] = value; setComparisonData(newData); };
+  
+  const inputClass = `w-full p-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white focus:ring-blue-500' : 'bg-white border-slate-300 text-slate-800 focus:ring-blue-500'}`;
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden">
-      <div className="p-4 border-b border-slate-100 flex gap-4"><button onClick={() => setActiveTab('list')} className={`px-4 py-2 rounded-lg text-sm font-medium ${activeTab === 'list' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>Directorio</button><button onClick={() => setActiveTab('compare')} className={`px-4 py-2 rounded-lg text-sm font-medium ${activeTab === 'compare' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>Comparador</button></div>
+    <div className={`rounded-xl shadow-sm border flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
+      <div className={`p-4 border-b flex gap-4 ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}><button onClick={() => setActiveTab('list')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'list' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : (isDarkMode ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-50')}`}>Directorio</button><button onClick={() => setActiveTab('compare')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'compare' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : (isDarkMode ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-50')}`}>Comparador</button></div>
       <div className="p-6 overflow-y-auto flex-1">
         {activeTab === 'list' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {isAdmin && (<div><h3 className="text-lg font-bold text-slate-800 mb-4">Agregar Nuevo Proveedor</h3><form onSubmit={handleAddSupplier} className="space-y-4 bg-slate-50 p-4 rounded-lg border border-slate-200"><input placeholder="Nombre Empresa" className="w-full p-2 border rounded" value={newSupplier.nombre} onChange={e => setNewSupplier({...newSupplier, nombre: e.target.value})} required /><input placeholder="Nombre Contacto" className="w-full p-2 border rounded" value={newSupplier.contacto} onChange={e => setNewSupplier({...newSupplier, contacto: e.target.value})} /><input placeholder="Teléfono / Email" className="w-full p-2 border rounded" value={newSupplier.telefono} onChange={e => setNewSupplier({...newSupplier, telefono: e.target.value})} /><button type="submit" className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Guardar Proveedor</button></form></div>)}
+            {isAdmin && (<div><h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Agregar Nuevo Proveedor</h3><form onSubmit={handleAddSupplier} className={`space-y-4 p-5 rounded-xl border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}><input placeholder="Nombre Empresa" className={inputClass} value={newSupplier.nombre} onChange={e => setNewSupplier({...newSupplier, nombre: e.target.value})} required /><input placeholder="Nombre Contacto" className={inputClass} value={newSupplier.contacto} onChange={e => setNewSupplier({...newSupplier, contacto: e.target.value})} /><input placeholder="Teléfono / Email" className={inputClass} value={newSupplier.telefono} onChange={e => setNewSupplier({...newSupplier, telefono: e.target.value})} /><button type="submit" className="w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 transition-all transform hover:scale-[1.02] font-medium shadow-lg shadow-blue-900/20">Guardar Proveedor</button></form></div>)}
             <div className={!isAdmin ? "lg:col-span-2" : ""}>
-              <h3 className="text-lg font-bold text-slate-800 mb-4">Lista de Proveedores</h3>
-              <div className="space-y-3">{suppliersData.length === 0 && <p className="text-slate-400 italic">No hay proveedores registrados.</p>}{suppliersData.map(sup => (<div key={sup.id} className="flex justify-between items-center p-3 bg-white border border-slate-200 rounded-lg shadow-sm"><div><p className="font-bold text-slate-800">{sup.nombre}</p><p className="text-xs text-slate-500">{sup.contacto} • {sup.telefono}</p></div>{isAdmin && <button onClick={() => handleDeleteSupplier(sup.id)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Trash2 size={16}/></button>}</div>))}</div>
+              <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Lista de Proveedores</h3>
+              <div className="space-y-3">{suppliersData.length === 0 && <p className="text-slate-400 italic">No hay proveedores registrados.</p>}{suppliersData.map(sup => (<div key={sup.id} className={`flex justify-between items-center p-4 border rounded-xl shadow-sm transition-all hover:scale-[1.01] ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}><div><p className={`font-bold ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{sup.nombre}</p><p className="text-xs text-slate-500">{sup.contacto} • {sup.telefono}</p></div>{isAdmin && <button onClick={() => handleDeleteSupplier(sup.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"><Trash2 size={18}/></button>}</div>))}</div>
             </div>
           </div>
         ) : (
-          <div className="max-w-3xl mx-auto"><h3 className="text-lg font-bold text-slate-800 mb-4 text-center">Comparador de Precios</h3><div className="bg-blue-50 p-6 rounded-xl border border-blue-100 mb-6"><label className="block text-sm font-medium text-slate-700 mb-2">Selecciona un Material para cotizar:</label><select className="w-full p-3 border border-slate-300 rounded-lg mb-4" value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)}><option value="">-- Selecciona Material --</option>{inventoryData.map(item => <option key={item.codigo} value={item.material}>{item.material} ({item.codigo})</option>)}</select>
-          {selectedProduct && (<div className="space-y-4"><div className="flex justify-between items-center"><h4 className="font-semibold text-slate-700">Cotizaciones</h4>{isAdmin && <button onClick={addComparisonRow} className="text-sm text-blue-600 font-medium flex items-center gap-1"><PlusCircle size={16}/> Agregar Cotización</button>}</div>{comparisonData.map((row, idx) => (<div key={idx} className="flex gap-4 items-center"><select className="flex-1 p-2 border rounded" value={row.supplierId} onChange={e => updateComparisonRow(idx, 'supplierId', e.target.value)} disabled={!isAdmin}><option value="">Selecciona Proveedor...</option>{suppliersData.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select><div className="relative w-32"><span className="absolute left-2 top-2 text-slate-400">C$</span><input type="number" className="w-full p-2 pl-8 border rounded" placeholder="0.00" value={row.price} onChange={e => updateComparisonRow(idx, 'price', parseFloat(e.target.value))} disabled={!isAdmin} /></div></div>))}
-          {comparisonData.length > 1 && (<div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg text-center"><p className="text-green-800 font-bold text-lg">Mejor opción: {(() => { const valid = comparisonData.filter(d => d.price > 0 && d.supplierId); if(valid.length === 0) return "--"; const best = valid.reduce((min, curr) => curr.price < min.price ? curr : min, valid[0]); const sup = suppliersData.find(s => s.id === best.supplierId); return `${sup?.nombre || 'Desconocido'} a C$${best.price}`; })()}</p></div>)}</div>)}</div></div>
+          <div className="max-w-3xl mx-auto"><h3 className={`text-lg font-bold mb-4 text-center ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Comparador de Precios</h3><div className={`p-6 rounded-xl border mb-6 ${isDarkMode ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-100'}`}><label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-blue-300' : 'text-slate-700'}`}>Selecciona un Material para cotizar:</label><select className={inputClass} value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)}><option value="">-- Selecciona Material --</option>{inventoryData.map(item => <option key={item.codigo} value={item.material}>{item.material} ({item.codigo})</option>)}</select>
+          {selectedProduct && (<div className="space-y-4 mt-6"><div className="flex justify-between items-center"><h4 className={`font-semibold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Cotizaciones</h4>{isAdmin && <button onClick={addComparisonRow} className="text-sm text-blue-500 font-medium flex items-center gap-1 hover:text-blue-400"><PlusCircle size={16}/> Agregar Cotización</button>}</div>{comparisonData.map((row, idx) => (<div key={idx} className="flex gap-4 items-center"><select className={inputClass} value={row.supplierId} onChange={e => updateComparisonRow(idx, 'supplierId', e.target.value)} disabled={!isAdmin}><option value="">Selecciona Proveedor...</option>{suppliersData.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select><div className="relative w-32"><span className="absolute left-3 top-3 text-slate-400">C$</span><input type="number" className={`${inputClass} pl-9`} placeholder="0.00" value={row.price} onChange={e => updateComparisonRow(idx, 'price', parseFloat(e.target.value))} disabled={!isAdmin} /></div></div>))}
+          {comparisonData.length > 1 && (<div className={`mt-6 p-4 border rounded-xl text-center ${isDarkMode ? 'bg-emerald-900/30 border-emerald-800' : 'bg-emerald-50 border-emerald-200'}`}><p className={`font-bold text-lg ${isDarkMode ? 'text-emerald-400' : 'text-emerald-800'}`}>Mejor opción: {(() => { const valid = comparisonData.filter(d => d.price > 0 && d.supplierId); if(valid.length === 0) return "--"; const best = valid.reduce((min, curr) => curr.price < min.price ? curr : min, valid[0]); const sup = suppliersData.find(s => s.id === best.supplierId); return `${sup?.nombre || 'Desconocido'} a C$${best.price}`; })()}</p></div>)}</div>)}</div></div>
         )}
       </div>
     </div>
   );
 };
 
-// --- NUEVA VISTA: REQUISICIONES (PEDIDOS) ---
-const RequisitionsView = ({ inventoryData, addToast, isAdmin }) => {
+// --- NUEVA VISTA: COTIZACIONES (SIN PRECIOS) ---
+const QuotationsView = ({ inventoryData, addToast, isAdmin, isDarkMode, logoUrl }) => {
+  const [items, setItems] = useState([]);
+  const [searchItem, setSearchItem] = useState('');
+
+  // No sincronizamos con Firebase para que sea una sesión temporal de "armar cotización"
+  // O podríamos guardarlo si se desea persistencia, pero por ahora es local.
+
+  const handleAddItem = (item) => {
+    if (items.find(i => i.codigo === item.codigo)) {
+      addToast("Ya está en la lista", "info");
+      return;
+    }
+    setItems([...items, { ...item, cantidad: 1 }]);
+    addToast("Agregado a cotización", "success");
+  };
+
+  const handleRemoveItem = (codigo) => {
+    setItems(items.filter(i => i.codigo !== codigo));
+  };
+
+  const handleUpdateQty = (codigo, qty) => {
+    setItems(items.map(i => i.codigo === codigo ? { ...i, cantidad: parseInt(qty) || 0 } : i));
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '', 'width=800,height=600');
+    const html = `
+      <html>
+      <head>
+        <title>Solicitud de Cotización</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+          .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; border-bottom: 2px solid #047857; padding-bottom: 20px; }
+          .logo { max-height: 80px; }
+          h1 { color: #047857; margin: 0; }
+          .meta { margin-bottom: 30px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+          th { background-color: #f3f4f6; text-align: center; }
+          .empty-col { width: 150px; }
+          .footer { margin-top: 60px; text-align: center; font-size: 12px; color: #666; }
+          @media print { button { display: none; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <h1>Solicitud de Cotización</h1>
+            <p><strong>Fecha:</strong> ${new Date().toLocaleDateString()}</p>
+          </div>
+          <img src="${logoUrl}" class="logo" alt="Logo" />
+        </div>
+        
+        <div class="meta">
+          <p>Estimados proveedores,</p>
+          <p>Por favor cotizar los siguientes materiales indicando precios unitarios, tiempo de entrega y condiciones de pago.</p>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th width="15%">Código</th>
+              <th width="40%">Descripción / Material</th>
+              <th width="10%">Cantidad</th>
+              <th class="empty-col">Precio Unitario</th>
+              <th class="empty-col">Tiempo Entrega</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(item => `
+              <tr>
+                <td style="text-align: center">${item.codigo}</td>
+                <td>${item.material}</td>
+                <td style="text-align: center"><strong>${item.cantidad}</strong> ${item.unidad}</td>
+                <td></td>
+                <td></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        
+        <div class="footer">
+           <p>Favor enviar cotización formal a la brevedad posible.</p>
+           <p>CONTROL ISC MATAGALPA</p>
+        </div>
+        
+        <script>window.print();</script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  const filteredInventory = inventoryData.filter(i => i.material.toLowerCase().includes(searchItem.toLowerCase()) || i.codigo.toLowerCase().includes(searchItem.toLowerCase()));
+
+  return (
+    <div className={`rounded-xl shadow-sm border flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
+       <div className={`p-4 border-b flex justify-between items-center ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+          <div className="flex gap-4 items-center"><h3 className={`font-bold text-lg flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><FileText className="text-blue-500"/> Solicitud de Cotización</h3><span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">{items.length} Items</span></div>
+          <div className="flex gap-2"><button onClick={handlePrint} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isDarkMode ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-800 text-white hover:bg-slate-700'}`}><Printer size={16}/> Imprimir Solicitud</button></div>
+       </div>
+       <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
+          <div className={`w-full lg:w-1/3 border-r flex flex-col ${isDarkMode ? 'border-slate-700 bg-slate-800/30' : 'border-slate-100 bg-slate-50/50'}`}>
+             <div className={`p-4 border-b ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}><div className="relative"><Search className="absolute left-3 top-2.5 text-slate-400" size={16}/><input type="text" placeholder="Buscar para cotizar..." className={`w-full pl-9 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300'}`} value={searchItem} onChange={(e) => setSearchItem(e.target.value)}/></div></div>
+             <div className="flex-1 overflow-y-auto p-2">{filteredInventory.map(item => (<div key={item.codigo} className={`flex justify-between items-center p-3 hover:shadow-sm rounded-lg border border-transparent transition-all cursor-pointer group ${isDarkMode ? 'hover:bg-slate-800 hover:border-slate-700' : 'hover:bg-white hover:border-slate-200'}`} onClick={() => handleAddItem(item)}><div className="min-w-0"><p className={`font-medium text-sm truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>{item.material}</p><p className="text-xs text-slate-500">{item.codigo}</p></div><button className="text-blue-500 opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-blue-500/10"><Plus size={16}/></button></div>))}</div>
+          </div>
+          <div className="flex-1 flex flex-col">
+             <div className="flex-1 overflow-y-auto">
+                {items.length === 0 ? (
+                  <div className={`h-full flex flex-col items-center justify-center ${isDarkMode ? 'text-slate-600' : 'text-slate-400'}`}>
+                    <FileText size={48} className="mb-4 opacity-50"/>
+                    <p>Selecciona productos a la izquierda para crear una solicitud.</p>
+                  </div>
+                ) : (
+                  <table className={`w-full text-left text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                     <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
+                        <tr><th className="p-3">Código</th><th className="p-3">Material</th><th className="p-3 text-center">Cantidad Solicitada</th><th className="p-3 text-center">Acción</th></tr>
+                     </thead>
+                     <tbody className={`divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
+                        {items.map(item => (
+                           <tr key={item.codigo} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
+                              <td className="p-3 font-mono text-xs opacity-70">{item.codigo}</td>
+                              <td className={`p-3 font-medium ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>{item.material}</td>
+                              <td className="p-3 text-center">
+                                <input 
+                                  type="number" 
+                                  min="1" 
+                                  className={`w-20 text-center p-1 border rounded ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300'}`}
+                                  value={item.cantidad}
+                                  onChange={(e) => handleUpdateQty(item.codigo, e.target.value)}
+                                />
+                              </td>
+                              <td className="p-3 text-center"><button onClick={() => handleRemoveItem(item.codigo)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-500/10"><Trash2 size={16}/></button></td>
+                           </tr>
+                        ))}
+                     </tbody>
+                  </table>
+                )}
+             </div>
+          </div>
+       </div>
+    </div>
+  );
+};
+
+// --- REQUISICIONES (INTERNO) ---
+const RequisitionsView = ({ inventoryData, addToast, isAdmin, isDarkMode }) => {
   const [requisitions, setRequisitions] = useState([]);
   const [searchItem, setSearchItem] = useState('');
 
@@ -569,33 +696,33 @@ const RequisitionsView = ({ inventoryData, addToast, isAdmin }) => {
   const filteredInventory = inventoryData.filter(i => i.material.toLowerCase().includes(searchItem.toLowerCase()) || i.codigo.toLowerCase().includes(searchItem.toLowerCase()));
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden">
-       <div className="p-4 border-b border-slate-100 flex justify-between items-center">
-          <div className="flex gap-4 items-center"><h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><ShoppingCart className="text-emerald-600"/> Requisiciones</h3><span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full">{requisitions.length} Items</span></div>
-          <div className="flex gap-2">{isAdmin && <button onClick={handleAutoFill} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 text-sm font-medium"><FilePlus size={16}/> Cargar Stock Bajo</button>}<button onClick={handlePrint} className="flex items-center gap-2 bg-slate-800 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 text-sm font-medium"><Printer size={16}/> Imprimir Lista</button></div>
+    <div className={`rounded-xl shadow-sm border flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
+       <div className={`p-4 border-b flex justify-between items-center ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+          <div className="flex gap-4 items-center"><h3 className={`font-bold text-lg flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><ShoppingCart className="text-emerald-600"/> Requisiciones</h3><span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full">{requisitions.length} Items</span></div>
+          <div className="flex gap-2">{isAdmin && <button onClick={handleAutoFill} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 text-sm font-medium"><FilePlus size={16}/> Cargar Stock Bajo</button>}<button onClick={handlePrint} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isDarkMode ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-800 text-white hover:bg-slate-700'}`}><Printer size={16}/> Imprimir Lista</button></div>
        </div>
        <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
-          <div className="w-full lg:w-1/3 border-r border-slate-100 flex flex-col bg-slate-50/50">
-             <div className="p-4 border-b border-slate-200"><div className="relative"><Search className="absolute left-3 top-2.5 text-slate-400" size={16}/><input type="text" placeholder="Buscar producto..." className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" value={searchItem} onChange={(e) => setSearchItem(e.target.value)}/></div></div>
-             <div className="flex-1 overflow-y-auto p-2">{filteredInventory.map(item => (<div key={item.codigo} className="flex justify-between items-center p-3 hover:bg-white hover:shadow-sm rounded-lg border border-transparent hover:border-slate-200 transition-all cursor-pointer group" onClick={() => isAdmin && handleAddToRequisition(item)}><div className="min-w-0"><p className="font-medium text-sm text-slate-700 truncate">{item.material}</p><p className="text-xs text-slate-500">Stock: <span className={item.stock <= 5 ? "text-red-500 font-bold" : ""}>{item.stock}</span></p></div>{isAdmin && <button className="text-emerald-600 opacity-0 group-hover:opacity-100 bg-emerald-50 p-1.5 rounded-md hover:bg-emerald-100"><Plus size={16}/></button>}</div>))}</div>
+          <div className={`w-full lg:w-1/3 border-r flex flex-col ${isDarkMode ? 'border-slate-700 bg-slate-800/30' : 'border-slate-100 bg-slate-50/50'}`}>
+             <div className={`p-4 border-b ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}><div className="relative"><Search className="absolute left-3 top-2.5 text-slate-400" size={16}/><input type="text" placeholder="Buscar producto..." className={`w-full pl-9 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300'}`} value={searchItem} onChange={(e) => setSearchItem(e.target.value)}/></div></div>
+             <div className="flex-1 overflow-y-auto p-2">{filteredInventory.map(item => (<div key={item.codigo} className={`flex justify-between items-center p-3 hover:shadow-sm rounded-lg border border-transparent transition-all cursor-pointer group ${isDarkMode ? 'hover:bg-slate-800 hover:border-slate-700' : 'hover:bg-white hover:border-slate-200'}`} onClick={() => isAdmin && handleAddToRequisition(item)}><div className="min-w-0"><p className={`font-medium text-sm truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>{item.material}</p><p className="text-xs text-slate-500">Stock: <span className={item.stock <= 5 ? "text-red-500 font-bold" : ""}>{item.stock}</span></p></div>{isAdmin && <button className="text-emerald-600 opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-emerald-100"><Plus size={16}/></button>}</div>))}</div>
           </div>
-          <div className="flex-1 flex flex-col bg-white">
+          <div className="flex-1 flex flex-col">
              <div className="flex-1 overflow-y-auto">
-                <table className="w-full text-left text-sm">
-                   <thead className="bg-slate-50 sticky top-0 z-10 text-slate-500">
+                <table className={`w-full text-left text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                   <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
                       <tr><th className="p-3">Código</th><th className="p-3">Material</th><th className="p-3 text-center">Stock Actual</th><th className="p-3 text-right">Costo Unit.</th><th className="p-3 text-right">Costo + IVA</th><th className="p-3 text-center">Acción</th></tr>
                    </thead>
-                   <tbody className="divide-y divide-slate-100">
+                   <tbody className={`divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
                       {requisitions.map(req => {
                          const stockActual = inventoryData.find(i => i.codigo === req.codigo)?.stock || 0;
                          return (
-                         <tr key={req.id} className="hover:bg-slate-50">
-                            <td className="p-3 font-mono text-xs">{req.codigo}</td>
-                            <td className="p-3 font-medium text-slate-700">{req.material}</td>
-                            <td className="p-3 text-center font-bold text-slate-600">{stockActual}</td>
-                            <td className="p-3 text-right text-slate-600">C${(req.costo).toFixed(2)}</td>
+                         <tr key={req.id} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
+                            <td className="p-3 font-mono text-xs opacity-70">{req.codigo}</td>
+                            <td className={`p-3 font-medium ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>{req.material}</td>
+                            <td className="p-3 text-center font-bold opacity-80">{stockActual}</td>
+                            <td className="p-3 text-right opacity-70">C${(req.costo).toFixed(2)}</td>
                             <td className="p-3 text-right font-bold text-emerald-600">C${(req.costo * (req.aplicaIVA ? 1.15 : 1)).toFixed(2)}{req.aplicaIVA && <span className="text-[10px] ml-1 text-slate-400">(15%)</span>}</td>
-                            <td className="p-3 text-center">{isAdmin && <button onClick={() => handleRemoveRequisition(req.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50"><Trash2 size={16}/></button>}</td>
+                            <td className="p-3 text-center">{isAdmin && <button onClick={() => handleRemoveRequisition(req.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-500/10"><Trash2 size={16}/></button>}</td>
                          </tr>
                       )})}
                       {requisitions.length === 0 && (<tr><td colSpan="6" className="p-10 text-center text-slate-400 italic">La lista de requisición está vacía.</td></tr>)}
@@ -604,6 +731,37 @@ const RequisitionsView = ({ inventoryData, addToast, isAdmin }) => {
              </div>
           </div>
        </div>
+    </div>
+  );
+};
+
+// --- SETTINGS VIEW ---
+const SettingsView = ({ categories, units, onAddCategory, onDeleteCategory, onAddUnit, onDeleteUnit, isDarkMode }) => {
+  const [newCat, setNewCat] = useState("");
+  const [newUnit, setNewUnit] = useState("");
+  const handleAddCat = (e) => { e.preventDefault(); if(newCat) { onAddCategory(newCat); setNewCat(""); } };
+  const handleAddUnit = (e) => { e.preventDefault(); if(newUnit) { onAddUnit(newUnit); setNewUnit(""); } };
+  const inputClass = `flex-1 p-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white focus:ring-blue-500' : 'bg-white border-slate-300 text-slate-800 focus:ring-blue-500'}`;
+  
+  return (
+    <div className={`rounded-xl shadow-sm border flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
+      <div className={`p-4 border-b ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}><h3 className={`font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><Settings size={20} className="text-gray-500"/> Configuración del Sistema</h3></div>
+      <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="flex flex-col h-full">
+           <h4 className={`font-bold mb-3 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Categorías de Productos</h4>
+           <form onSubmit={handleAddCat} className="flex gap-2 mb-4"><input className={inputClass} placeholder="Nueva Categoría..." value={newCat} onChange={e => setNewCat(e.target.value.toUpperCase())} /><button type="submit" className="bg-blue-600 text-white p-2.5 rounded-lg hover:bg-blue-700 transition-colors"><Plus size={18}/></button></form>
+           <div className={`flex-1 overflow-y-auto border rounded-xl p-2 space-y-1 max-h-96 ${isDarkMode ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+             {categories.map((cat, idx) => (<div key={`${cat}-${idx}`} className={`flex justify-between items-center p-2 rounded border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-100 text-slate-700'}`}><span className="text-sm font-medium">{cat}</span><button onClick={() => onDeleteCategory(cat)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button></div>))}
+           </div>
+        </div>
+        <div className="flex flex-col h-full">
+           <h4 className={`font-bold mb-3 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Unidades de Medida</h4>
+           <form onSubmit={handleAddUnit} className="flex gap-2 mb-4"><input className={inputClass} placeholder="Nueva Unidad..." value={newUnit} onChange={e => setNewUnit(e.target.value.toUpperCase())} /><button type="submit" className="bg-blue-600 text-white p-2.5 rounded-lg hover:bg-blue-700 transition-colors"><Plus size={18}/></button></form>
+           <div className={`flex-1 overflow-y-auto border rounded-xl p-2 space-y-1 max-h-96 ${isDarkMode ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+             {units.map((unit, idx) => (<div key={`${unit}-${idx}`} className={`flex justify-between items-center p-2 rounded border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-100 text-slate-700'}`}><span className="text-sm font-medium">{unit}</span><button onClick={() => onDeleteUnit(unit)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button></div>))}
+           </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -631,6 +789,9 @@ export default function InventoryDashboard() {
   // ESTADOS DE CONFIGURACIÓN DINÁMICA
   const [categoriesList, setCategoriesList] = useState([]);
   const [unitsList, setUnitsList] = useState([]);
+  
+  // TEMA OSCURO
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('isc_theme') === 'dark');
 
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -653,6 +814,13 @@ export default function InventoryDashboard() {
     }, 3000); 
   };
   const removeToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
+  
+  // --- TOGGLE THEME ---
+  const toggleTheme = () => {
+    const newTheme = !isDarkMode;
+    setIsDarkMode(newTheme);
+    localStorage.setItem('isc_theme', newTheme ? 'dark' : 'light');
+  };
 
   // --- 1. AUTENTICACIÓN Y PERFIL ---
   useEffect(() => {
@@ -706,11 +874,7 @@ export default function InventoryDashboard() {
       const data = snapshot.val();
       if (!data) { set(ref(db, CATEGORIES_PATH), DEFAULT_CATEGORIES_LIST); } 
       else { 
-        // Normalizar datos (soportar strings y objetos)
-        const list = Object.entries(data).map(([k, v]) => ({
-            id: k,
-            name: (typeof v === 'object' && v.name) ? v.name : v
-        }));
+        const list = Object.entries(data).map(([k, v]) => ({ id: k, name: (typeof v === 'object' && v.name) ? v.name : v }));
         setCategoriesList(list); 
       }
     });
@@ -720,11 +884,7 @@ export default function InventoryDashboard() {
       const data = snapshot.val();
       if (!data) { set(ref(db, UNITS_PATH), DEFAULT_UNITS_LIST); }
       else { 
-        // Normalizar datos
-        const list = Object.entries(data).map(([k, v]) => ({
-            id: k,
-            name: (typeof v === 'object' && v.name) ? v.name : v
-        }));
+        const list = Object.entries(data).map(([k, v]) => ({ id: k, name: (typeof v === 'object' && v.name) ? v.name : v }));
         setUnitsList(list); 
       }
     });
@@ -742,7 +902,7 @@ export default function InventoryDashboard() {
              user: user.uid, 
              name: userProfile.name, 
              deviceName: userProfile.device, 
-             type: userProfile.type,
+             type: userProfile.type, 
              connectedAt: Date.now() 
            });
         });
@@ -784,14 +944,13 @@ export default function InventoryDashboard() {
     push(ref(db, CATEGORIES_PATH), { name: cat });
   };
   const handleDeleteCategory = (catName) => {
-    // Buscar el ID basado en el nombre (ya que tenemos la lista con IDs)
     const item = categoriesList.find(c => c.name === catName);
     if (item && item.id) {
        remove(ref(db, `${CATEGORIES_PATH}/${item.id}`))
          .then(() => addToast("Categoría eliminada", "success"))
          .catch(() => addToast("Error al eliminar", "error"));
     } else {
-       addToast("No se pudo eliminar (elemento predeterminado o error)", "warning");
+       addToast("No se pudo eliminar", "warning");
     }
   };
   const handleAddUnit = (unit) => {
@@ -846,7 +1005,7 @@ export default function InventoryDashboard() {
   // --- LÓGICA DE CATEGORÍAS PARA FILTROS ---
   const configCategories = categoriesList.map(c => c.name); 
   const inventoryCategories = [...new Set(inventoryData.map(item => item.categoria).filter(Boolean))];
-  const availableCategories = ['Todas', ...new Set([...configCategories, ...inventoryCategories])].sort();
+  const availableCategories = ['Todas', ...new Set([...configCategories, ...inventoryCategories])].sort(); // ORDEN ALFABÉTICO
 
   const filteredData = useMemo(() => {
     return inventoryData.filter(item => {
@@ -861,8 +1020,7 @@ export default function InventoryDashboard() {
 
   const categories = ['Todas', ...new Set(inventoryData.map(item => item.categoria).filter(Boolean))];
   const rawCategories = [...new Set(inventoryData.map(item => item.categoria).filter(Boolean))].sort();
-  // TOTAL SIN IVA
-  const totalValue = inventoryData.reduce((acc, item) => acc + (item.stock * parseFloat(item.costo || 0)), 0);
+  const totalValue = inventoryData.reduce((acc, item) => acc + (item.stock * parseFloat(item.costo || 0) * (item.aplicaIVA ? 1.15 : 1)), 0);
 
   const rotationData = useMemo(() => {
     const rotation = {};
@@ -882,210 +1040,271 @@ export default function InventoryDashboard() {
   if (loading) return <div className="h-screen flex items-center justify-center bg-emerald-900 text-white">Cargando...</div>;
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-800">
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-emerald-900 text-white transition-all duration-300 flex flex-col fixed h-full z-20 md:relative shadow-xl`}>
+    <div className={`flex h-screen font-sans transition-colors duration-300 ${isDarkMode ? 'bg-slate-900 text-slate-100' : 'bg-[#f8fafc] text-slate-800'}`}>
+      <aside className={`w-20 md:w-64 transition-all duration-300 flex flex-col fixed h-full z-20 shadow-2xl backdrop-blur-xl border-r ${isDarkMode ? 'bg-slate-900/95 border-slate-800' : 'bg-white/80 border-white/50'}`}>
         <div className="p-6 flex flex-col justify-center h-20">
           <div className="flex items-center justify-between">
             {sidebarOpen && (
               <div className="flex items-center gap-3">
                 <div className={`relative group ${isAdmin ? 'cursor-pointer' : ''}`} onClick={handleLogoClick} title={isAdmin ? "Cambiar logo" : ""}>
-                  <img src={logoUrl} alt="Logo" className="w-10 h-10 object-contain bg-white rounded-lg p-1" />
-                  {isAdmin && <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/30 rounded-lg"><Upload size={16} className="text-white"/></div>}
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg overflow-hidden ${isDarkMode ? 'bg-slate-800' : 'bg-white'}`}>
+                    {/* Contenedor de imagen centrado */}
+                    <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
+                  </div>
+                  {isAdmin && <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/50 rounded-xl transition-opacity"><Upload size={16} className="text-white"/></div>}
                   <input type="file" ref={fileInputRef} onChange={handleLogoChange} className="hidden" accept="image/*" />
                 </div>
-                <div><h1 className="text-xl font-bold tracking-tight text-white leading-tight">CONTROL <span className="text-emerald-400">ISC</span></h1><p className="text-xs text-emerald-200 mt-[-2px]">Matagalpa</p></div>
+                <div>
+                  <h1 className={`text-xl font-bold tracking-tight leading-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                    CONTROL <span className="text-emerald-500">ISC</span>
+                  </h1>
+                  <p className={`text-[10px] font-medium tracking-wider uppercase mt-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Matagalpa</p>
+                </div>
               </div>
             )}
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1 rounded hover:bg-emerald-800 text-emerald-100 self-center">{sidebarOpen ? <X size={20} /> : <Menu size={20} />}</button>
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-1.5 rounded-lg transition-colors md:hidden ${isDarkMode ? 'text-slate-400 hover:bg-slate-800' : 'text-slate-400 hover:bg-slate-100'}`}>{sidebarOpen ? <X size={20} /> : <Menu size={20} />}</button>
           </div>
         </div>
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          {[{id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'}, {id: 'inventory', icon: Package, label: 'Inventario'}, {id: 'requisitions', icon: ShoppingCart, label: 'Requisiciones'}, {id: 'suppliers', icon: Truck, label: 'Proveedores'}, {id: 'history', icon: History, label: 'Historial'}, {id: 'settings', icon: Settings, label: 'Configuración', adminOnly: true}].map(item => (
+        
+        <nav className="flex-1 px-4 py-6 space-y-1">
+          {[{id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'}, {id: 'inventory', icon: Package, label: 'Inventario'}, {id: 'requisitions', icon: ShoppingCart, label: 'Requisiciones'}, {id: 'quotations', icon: FileText, label: 'Cotizaciones'}, {id: 'suppliers', icon: Truck, label: 'Proveedores'}, {id: 'history', icon: History, label: 'Historial'}, {id: 'settings', icon: Settings, label: 'Configuración', adminOnly: true}].map(item => (
             (!item.adminOnly || isAdmin) && (
-              <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${activeTab === item.id ? 'bg-emerald-700 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-800'}`}>
-                <item.icon size={20} />{sidebarOpen && <span>{item.label}</span>}
+              <button 
+                key={item.id} 
+                onClick={() => setActiveTab(item.id)} 
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden ${activeTab === item.id ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20' : (isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-500 hover:bg-white hover:shadow-sm hover:text-emerald-600')}`}
+              >
+                <item.icon size={20} className={`${activeTab === item.id ? 'animate-pulse' : ''}`}/>
+                <span className={`font-medium ${!sidebarOpen && 'hidden md:inline'}`}>{item.label}</span>
+                {activeTab === item.id && <div className="absolute right-0 top-0 h-full w-1 bg-white/20"></div>}
               </button>
             )
           ))}
         </nav>
-        <div className="p-4 border-t border-emerald-800 space-y-3">
+
+        <div className={`p-4 border-t space-y-4 ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+           <button 
+             onClick={toggleTheme} 
+             className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-colors ${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+           >
+             {isDarkMode ? <><Sun size={14}/> Modo Claro</> : <><Moon size={14}/> Modo Oscuro</>}
+           </button>
+
           {sidebarOpen && (
-            <div className="flex items-center justify-between text-emerald-300 text-xs">
+            <div className={`flex items-center justify-between text-xs px-2 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
               <div className="flex items-center gap-2 group cursor-pointer" onClick={handleChangeDeviceName} title="Clic para cambiar identidad">
-                <div className="w-2 h-2 rounded-full bg-green-400"></div>
-                <div className="flex flex-col"><span className="font-bold text-white truncate max-w-[100px]">{userProfile ? userProfile.name : 'Usuario'}</span><span>En línea</span></div><Pencil size={10} className="opacity-0 group-hover:opacity-100"/>
+                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
+                <div className="flex flex-col">
+                  <span className={`font-bold truncate max-w-[100px] ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>{userProfile ? userProfile.name : 'Usuario'}</span>
+                  <span>En línea</span>
+                </div>
+                <Pencil size={10} className="opacity-0 group-hover:opacity-100 transition-opacity"/>
               </div>
             </div>
           )}
-          {sidebarOpen ? (
-            <div className="flex items-center justify-between bg-emerald-950/30 p-2 rounded-lg">
-              <div className="flex items-center gap-2 text-xs text-emerald-200">{isAdmin ? <Shield size={14} className="text-emerald-400"/> : <Eye size={14}/>}<span>{isAdmin ? 'Admin' : 'Lectura'}</span></div>
-              <button onClick={() => isAdmin ? setIsAdmin(false) : setIsLoginModalOpen(true)} className="text-emerald-400 hover:text-white transition-colors">{isAdmin ? <Unlock size={16}/> : <Lock size={16}/>}</button>
+          
+          <div className={`flex items-center justify-between p-2 rounded-xl border ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+              <div className="flex items-center gap-2 text-xs">
+                <div className={`p-1.5 rounded-lg ${isAdmin ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-500'}`}>
+                  {isAdmin ? <Shield size={14}/> : <Eye size={14}/>}
+                </div>
+                <span className={`font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{isAdmin ? 'Admin' : 'Visor'}</span>
+              </div>
+              <button 
+                onClick={() => isAdmin ? setIsAdmin(false) : setIsLoginModalOpen(true)}
+                className={`p-1.5 rounded-lg transition-all ${isDarkMode ? 'hover:bg-slate-700 text-slate-400 hover:text-white' : 'hover:bg-white hover:shadow-sm text-slate-400 hover:text-emerald-600'}`}
+                title={isAdmin ? "Cerrar sesión" : "Ingresar como admin"}
+              >
+                {isAdmin ? <Unlock size={14}/> : <Lock size={14}/>}
+              </button>
             </div>
-          ) : (
-            <button onClick={() => isAdmin ? setIsAdmin(false) : setIsLoginModalOpen(true)} className="w-full flex justify-center text-emerald-300 hover:text-white">{isAdmin ? <Unlock size={20}/> : <Lock size={20}/>}</button>
-          )}
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto p-4 md:p-8">
+      <main className={`flex-1 overflow-y-auto p-4 md:p-8 transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'ml-20'}`}>
         <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">{activeTab === 'dashboard' ? 'Visión General' : activeTab === 'inventory' ? 'Inventario' : activeTab === 'requisitions' ? 'Requisiciones y Pedidos' : activeTab === 'suppliers' ? 'Proveedores' : activeTab === 'settings' ? 'Configuración' : 'Historial'}</h2>
-            <div className="flex items-center gap-2 text-slate-500 text-sm"><Wifi size={14} className="text-emerald-500" /><span>En línea • {isAdmin ? 'Edición Habilitada' : 'Solo Lectura'}</span></div>
+            <h2 className={`text-2xl font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{activeTab === 'dashboard' ? 'Visión General' : activeTab === 'inventory' ? 'Inventario' : activeTab === 'requisitions' ? 'Requisiciones' : activeTab === 'quotations' ? 'Solicitud Cotización' : activeTab === 'suppliers' ? 'Proveedores' : activeTab === 'settings' ? 'Configuración' : 'Historial'}</h2>
+            <div className="flex items-center gap-2 text-sm mt-1 font-medium"><Wifi size={14} className="text-emerald-500" /><span className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}>Conexión estable • {isAdmin ? 'Edición Habilitada' : 'Solo Lectura'}</span></div>
           </div>
-          <button onClick={() => setIsConnectedUsersModalOpen(true)} className="flex items-center gap-4 text-sm font-medium text-slate-500 bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors">
-             <div className="flex items-center gap-2"><Users size={18} className="text-blue-500" /><span className="text-blue-700 font-bold">{onlineUsersList.length}</span><span className="text-slate-600">Conectados</span></div>
-             <div className="hidden md:flex items-center gap-2 border-l pl-4 border-slate-200 text-xs"><Laptop size={14} className="text-slate-400"/><span className="font-bold text-slate-700">{userProfile ? userProfile.device : 'Dispositivo'}</span><span className="text-emerald-600 font-semibold bg-emerald-50 px-1.5 rounded">(Tú)</span></div>
+          <button onClick={() => setIsConnectedUsersModalOpen(true)} className={`group flex items-center gap-4 text-sm font-medium px-4 py-2 rounded-full border shadow-sm transition-all hover:scale-105 ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-200'}`}>
+             <div className="flex items-center gap-2"><Users size={18} className="text-blue-500 group-hover:animate-bounce" /><span className="text-blue-600 font-bold">{onlineUsersList.length}</span><span>Conectados</span></div>
+             <div className={`hidden md:flex items-center gap-2 border-l pl-4 text-xs ${isDarkMode ? 'border-slate-600' : 'border-slate-200'}`}>
+               {userProfile && userProfile.type === 'Móvil' ? <Smartphone size={14} className="text-slate-400"/> : <Laptop size={14} className="text-slate-400"/>}
+               <span className="font-bold">{myDeviceName}</span>
+               <span className="text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold">(Tú)</span>
+             </div>
           </button>
         </header>
 
         {activeTab === 'dashboard' && (
           <div className="space-y-6 animate-in fade-in duration-500">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card title="Total Productos" value={inventoryData.length} icon={Package} color="blue" />
-              <Card title="Stock Total" value={inventoryData.reduce((acc, item) => acc + item.stock, 0)} icon={BarChartIcon} color="emerald" />
-              <Card title="Valor (Sin IVA)" value={`C$${totalValue.toLocaleString('en-US', {minimumFractionDigits: 2})}`} icon={DollarSign} color="indigo" />
-              <Card title="Agotados" value={inventoryData.filter(i => i.stock <= 0).length} icon={AlertTriangle} color="red" trend="down" />
+              <Card isDarkMode={isDarkMode} title="Total Productos" value={inventoryData.length} icon={Package} color="blue" />
+              <Card isDarkMode={isDarkMode} title="Stock Total" value={inventoryData.reduce((acc, item) => acc + item.stock, 0)} icon={BarChartIcon} color="emerald" />
+              <Card isDarkMode={isDarkMode} title="Valor (Sin IVA)" value={`C$${totalValue.toLocaleString('en-US', {minimumFractionDigits: 2})}`} icon={DollarSign} color="indigo" />
+              <Card isDarkMode={isDarkMode} title="Agotados" value={inventoryData.filter(i => i.stock <= 0).length} icon={AlertTriangle} color="red" trend="down" />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-80 flex flex-col">
-                  <h3 className="text-lg font-bold text-slate-800 mb-4">Stock por Categoría</h3>
+                <div className={`p-6 rounded-2xl shadow-sm border h-80 flex flex-col transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
+                  <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Stock por Categoría</h3>
                   <div className="flex-1 w-full min-h-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={Object.entries(inventoryData.reduce((acc, i) => { const c = i.categoria.includes('CHUMAZERAS')?'CHUMAZERAS':i.categoria; acc[c] = (acc[c]||0)+i.stock; return acc; }, {})).map(([name, value]) => ({name, value})).sort((a,b)=>b.value-a.value).slice(0,7)} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
                         <XAxis type="number" hide />
-                        <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
-                        <Tooltip />
-                        <Bar dataKey="value" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20} />
+                        <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11, fill: isDarkMode ? '#94a3b8' : '#64748b'}} />
+                        <Tooltip contentStyle={{backgroundColor: isDarkMode ? '#1e293b' : '#fff', borderColor: isDarkMode ? '#334155' : '#e2e8f0', color: isDarkMode ? '#fff' : '#000'}} cursor={{fill: isDarkMode ? '#334155' : '#f1f5f9'}} />
+                        <Bar dataKey="value" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20}>
+                          {
+                            Object.entries(inventoryData.reduce((acc, i) => { const c = i.categoria.includes('CHUMAZERAS')?'CHUMAZERAS':i.categoria; acc[c] = (acc[c]||0)+i.stock; return acc; }, {})).map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={`hsl(${210 + (index * 20)}, 80%, ${isDarkMode ? '60%' : '50%'})`} />
+                            ))
+                          }
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-80 flex flex-col">
-                  <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Activity size={20} className="text-purple-600"/> Análisis de Rotación (Top 5 Salidas)</h3>
+                <div className={`p-6 rounded-2xl shadow-sm border h-80 flex flex-col transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
+                  <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><Activity size={20} className="text-purple-500"/> Análisis de Rotación (Top 5 Salidas)</h3>
                   <div className="flex-1 w-full min-h-0">
                      {rotationData.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={rotationData} layout="vertical" margin={{ left: 40 }}>
-                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
                           <XAxis type="number" hide />
-                          <YAxis dataKey="name" type="category" width={150} tick={{fontSize: 11}} />
-                          <Tooltip cursor={{fill: '#f1f5f9'}} />
+                          <YAxis dataKey="name" type="category" width={150} tick={{fontSize: 11, fill: isDarkMode ? '#94a3b8' : '#64748b'}} />
+                          <Tooltip contentStyle={{backgroundColor: isDarkMode ? '#1e293b' : '#fff', borderColor: isDarkMode ? '#334155' : '#e2e8f0', color: isDarkMode ? '#fff' : '#000'}} cursor={{fill: isDarkMode ? '#334155' : '#f1f5f9'}} />
                           <Bar dataKey="value" fill="#8B5CF6" radius={[0, 4, 4, 0]} barSize={20} name="Unidades" />
                         </BarChart>
                       </ResponsiveContainer>
                      ) : (
-                       <div className="h-full flex items-center justify-center text-slate-400 italic">No hay datos de salidas aún.</div>
+                       <div className={`h-full flex items-center justify-center italic ${isDarkMode ? 'text-slate-600' : 'text-slate-300'}`}>No hay datos de salidas aún.</div>
                      )}
                   </div>
                 </div>
               </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-auto overflow-y-auto">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">Stock Bajo</h3>
-                {inventoryData.filter(i => i.stock <= 5).sort((a,b)=>a.stock-b.stock).map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center p-3 hover:bg-slate-50 border-b last:border-0">
-                    <div className="truncate pr-2"><p className="text-sm font-medium">{item.material}</p><p className="text-xs text-slate-400">{item.codigo}</p></div>
-                    <Badge type={item.stock <= 0 ? "danger" : "warning"}>{item.stock}</Badge>
-                  </div>
-                ))}
-                {inventoryData.filter(i => i.stock <= 5).length === 0 && <p className="text-slate-400 text-sm italic text-center py-10">Todo en orden.</p>}
+              <div className={`p-6 rounded-2xl shadow-sm border h-auto overflow-y-auto transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
+                <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Stock Bajo</h3>
+                <div className="space-y-2">
+                  {inventoryData.filter(i => i.stock <= 5).sort((a,b)=>a.stock-b.stock).map((item, idx) => (
+                    <div key={idx} className={`flex justify-between items-center p-3 rounded-lg border transition-colors ${isDarkMode ? 'bg-slate-900/50 border-slate-700 hover:bg-slate-700' : 'bg-slate-50 border-slate-100 hover:bg-white hover:shadow-sm'}`}>
+                      <div className="truncate pr-2"><p className={`text-sm font-medium ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>{item.material}</p><p className="text-xs text-slate-400">{item.codigo}</p></div>
+                      <Badge type={item.stock <= 0 ? "danger" : "warning"}>{item.stock}</Badge>
+                    </div>
+                  ))}
+                  {inventoryData.filter(i => i.stock <= 5).length === 0 && <p className="text-slate-400 text-sm italic text-center py-10">Todo en orden.</p>}
+                </div>
               </div>
             </div>
           </div>
         )}
 
         {activeTab === 'inventory' && (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-[calc(100vh-200px)] animate-in fade-in duration-500">
-            <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className={`rounded-2xl shadow-sm border flex flex-col h-[calc(100vh-200px)] animate-in fade-in duration-500 overflow-hidden ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
+            <div className={`p-4 border-b flex flex-col md:flex-row gap-4 items-center justify-between ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}>
               <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto flex-1">
-                 <div className="relative w-full md:w-96"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder="Buscar..." className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
-                <div className="flex items-center gap-2 w-full md:w-auto"><Filter size={18} className="text-slate-400" /><select className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>{availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
+                 <div className="relative w-full md:w-96"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder="Buscar..." className={`w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white' : 'bg-slate-50 border-slate-200'}`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
+                <div className="flex items-center gap-2 w-full md:w-auto"><Filter size={18} className="text-slate-400" /><select className={`border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full md:w-auto transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white' : 'bg-slate-50 border-slate-200'}`} value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>{availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => exportToCSV(filteredData, 'inventario')} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-lg font-medium shadow-sm"><Download size={20} /> <span className="hidden sm:inline">Exportar</span></button>
-                {isAdmin && <button onClick={handleOpenCreateModal} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm"><Plus size={20} /> <span className="hidden sm:inline">Nuevo</span></button>}
+                <button onClick={() => exportToCSV(filteredData, 'inventario')} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium shadow-sm transition-colors ${isDarkMode ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Download size={20} /> <span className="hidden sm:inline">Exportar</span></button>
+                {isAdmin && <button onClick={handleOpenCreateModal} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-all transform hover:scale-105"><Plus size={20} /> <span className="hidden sm:inline">Nuevo</span></button>}
               </div>
             </div>
             
-            <div className="px-4 py-2 bg-slate-50/50 border-b border-slate-100 flex gap-2">
-               <button onClick={() => setStatusFilter('all')} className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-2 transition-colors ${statusFilter === 'all' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}><ListFilter size={14}/> Todos ({inventoryData.length})</button>
-               <button onClick={() => setStatusFilter('low')} className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-2 transition-colors ${statusFilter === 'low' ? 'bg-amber-100 text-amber-800 border-amber-200 ring-1 ring-amber-300' : 'bg-white text-slate-600 border-slate-200 hover:bg-amber-50 hover:text-amber-700'}`}><AlertTriangle size={14} className={statusFilter === 'low' ? 'text-amber-600' : 'text-slate-400'}/> Stock Bajo ({inventoryData.filter(i => i.stock <= 5 && i.stock > 0).length})</button>
-               <button onClick={() => setStatusFilter('out')} className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-2 transition-colors ${statusFilter === 'out' ? 'bg-red-100 text-red-800 border-red-200 ring-1 ring-red-300' : 'bg-white text-slate-600 border-slate-200 hover:bg-red-50 hover:text-red-700'}`}><AlertCircle size={14} className={statusFilter === 'out' ? 'text-red-600' : 'text-slate-400'}/> Agotados ({inventoryData.filter(i => i.stock <= 0).length})</button>
+            <div className={`px-4 py-2 border-b flex gap-2 overflow-x-auto ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50/50 border-slate-100'}`}>
+               <button onClick={() => setStatusFilter('all')} className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-2 transition-colors ${statusFilter === 'all' ? (isDarkMode ? 'bg-slate-200 text-slate-900 border-slate-200' : 'bg-slate-800 text-white border-slate-800') : (isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-white text-slate-600 border-slate-200')}`}><ListFilter size={14}/> Todos ({inventoryData.length})</button>
+               <button onClick={() => setStatusFilter('low')} className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-2 transition-colors ${statusFilter === 'low' ? (isDarkMode ? 'bg-amber-900/50 text-amber-400 border-amber-700' : 'bg-amber-100 text-amber-800 border-amber-200 ring-1 ring-amber-300') : (isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-white text-slate-600 border-slate-200')}`}><AlertTriangle size={14} className={statusFilter === 'low' ? 'text-amber-500' : 'text-slate-400'}/> Stock Bajo ({inventoryData.filter(i => i.stock <= 5 && i.stock > 0).length})</button>
+               <button onClick={() => setStatusFilter('out')} className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-2 transition-colors ${statusFilter === 'out' ? (isDarkMode ? 'bg-red-900/50 text-red-400 border-red-700' : 'bg-red-100 text-red-800 border-red-200 ring-1 ring-red-300') : (isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-white text-slate-600 border-slate-200')}`}><AlertCircle size={14} className={statusFilter === 'out' ? 'text-red-500' : 'text-slate-400'}/> Agotados ({inventoryData.filter(i => i.stock <= 0).length})</button>
             </div>
 
             <div className="overflow-auto flex-1">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50 sticky top-0 z-10">
+              <table className={`w-full text-left border-collapse ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
                   <tr>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b">Código</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b">Material</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b hidden md:table-cell">Categoría</th>
+                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700">Código</th>
+                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700">Material</th>
+                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 hidden md:table-cell">Categoría</th>
                     {/* COLUMNA UBICACION ELIMINADA */}
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-right">Precio Unit.</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-right text-emerald-600">Costo + IVA</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-right">Stock</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-center">Estado</th>
-                    <th className="p-4 text-xs font-bold text-slate-500 uppercase border-b text-center">Acciones</th>
+                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-right">Precio Unit.</th>
+                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-right text-emerald-600">Costo + IVA</th>
+                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-right">Stock</th>
+                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-center">Estado</th>
+                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-center">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className={`divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
                   {filteredData.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-blue-50/50 group">
-                      <td className="p-4 text-sm font-mono text-slate-600">{item.codigo}</td>
-                      <td className="p-4"><p className="text-sm font-semibold">{item.material}</p></td>
-                      <td className="p-4 text-sm hidden md:table-cell"><span className="px-2 py-1 rounded bg-slate-100 text-xs font-medium">{item.categoria}</span></td>
+                    <tr key={idx} className={`group transition-colors ${isDarkMode ? 'hover:bg-slate-700/30' : 'hover:bg-blue-50/30'}`}>
+                      <td className="p-4 text-sm font-mono opacity-70">{item.codigo}</td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${isDarkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-500'}`}>
+                             {item.material.charAt(0)}
+                          </div>
+                          <p className="text-sm font-semibold">{item.material}</p>
+                        </div>
+                      </td>
+                      <td className="p-4 text-sm hidden md:table-cell"><span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: isDarkMode ? stringToDarkColor(item.categoria) : stringToColor(item.categoria), color: isDarkMode ? '#ddd' : '#333' }}>{item.categoria}</span></td>
                       {/* CELDA UBICACION ELIMINADA */}
-                      <td className="p-4 text-sm text-right text-slate-500">C${(item.costo || 0).toFixed(2)}</td>
+                      <td className="p-4 text-sm text-right opacity-70">C${(item.costo || 0).toFixed(2)}</td>
                       <td className="p-4 text-sm text-right font-bold text-emerald-600">C${((item.costo||0)*(item.aplicaIVA?1.15:1)).toFixed(2)}</td>
-                      <td className={`p-4 text-lg font-bold text-right ${item.stock<0?'text-red-600':'text-slate-800'}`}>{item.stock}</td>
+                      <td className="p-4 text-right">
+                         <span className={`text-sm font-bold ${item.stock <= 5 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-400'}`}>{item.stock}</span>
+                      </td>
                       <td className="p-4 text-center">
                         {item.stock <= 0 ? <Badge type="danger">Agotado</Badge> : item.stock <= 5 ? <Badge type="warning">Bajo</Badge> : <Badge type="success">En Stock</Badge>}
                       </td>
                       <td className="p-4 text-center">
-                        {isAdmin ? (
-                          <div className="flex justify-center gap-2">
-                            <button onClick={() => handleOpenStockModal(item)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><PlusCircle size={18}/></button>
-                            <button onClick={() => handleOpenEditModal(item)} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100"><Pencil size={18}/></button>
-                            <button onClick={() => handleDeleteProduct(item.codigo)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={18}/></button>
-                          </div>
-                        ) : <span className="text-xs text-slate-400 italic">Solo Lectura</span>}
+                        <div className="flex justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                           <button onClick={() => handleOpenProductHistory(item)} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-slate-600 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`} title="Ver Historial"><History size={18}/></button>
+                           {isAdmin && (
+                            <>
+                              <button onClick={() => handleOpenStockModal(item)} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-blue-900/30 text-blue-400' : 'hover:bg-blue-50 text-blue-600'}`}><PlusCircle size={18}/></button>
+                              <button onClick={() => handleOpenEditModal(item)} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-amber-900/30 text-amber-400' : 'hover:bg-amber-50 text-amber-600'}`}><Pencil size={18}/></button>
+                              <button onClick={() => handleDeleteProduct(item.codigo)} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-600'}`}><Trash2 size={18}/></button>
+                            </>
+                           )}
+                        </div>
                       </td>
                     </tr>
                   ))}
-                  {filteredData.length === 0 && (<tr><td colSpan="8" className="p-8 text-center text-slate-400 italic">No hay productos que coincidan con el filtro.</td></tr>)}
+                  {filteredData.length === 0 && (<tr><td colSpan="8" className="p-10 text-center italic opacity-50">No hay productos que coincidan con el filtro.</td></tr>)}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {activeTab === 'requisitions' && <RequisitionsView isAdmin={isAdmin} inventoryData={inventoryData} addToast={addToast} />}
+        {activeTab === 'requisitions' && <RequisitionsView isAdmin={isAdmin} inventoryData={inventoryData} addToast={addToast} isDarkMode={isDarkMode} />}
 
-        {activeTab === 'suppliers' && <SuppliersView isAdmin={isAdmin} suppliersData={suppliersData} inventoryData={inventoryData} addToast={addToast} />}
+        {activeTab === 'quotations' && <QuotationsView isAdmin={isAdmin} inventoryData={inventoryData} addToast={addToast} isDarkMode={isDarkMode} logoUrl={logoUrl} />}
+
+        {activeTab === 'suppliers' && <SuppliersView isAdmin={isAdmin} suppliersData={suppliersData} inventoryData={inventoryData} addToast={addToast} isDarkMode={isDarkMode} />}
 
         {activeTab === 'history' && (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-[calc(100vh-200px)] animate-in fade-in duration-500">
-            <div className="p-4 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="font-bold text-slate-700 flex items-center gap-2"><History size={20} className="text-emerald-600"/> Historial</h3>
-              <button onClick={() => exportToCSV(historyData, 'historial')} className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-lg font-medium shadow-sm"><Download size={20} /> Exportar</button>
+          <div className={`rounded-xl shadow-sm border flex flex-col h-[calc(100vh-200px)] animate-in fade-in duration-500 overflow-hidden ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
+            <div className={`p-4 border-b flex justify-between items-center ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+              <h3 className={`font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><History size={20} className="text-emerald-500"/> Historial General</h3>
+              <button onClick={() => exportToCSV(historyData, 'historial')} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium shadow-sm transition-colors ${isDarkMode ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Download size={20} /> Exportar</button>
             </div>
             <div className="overflow-auto flex-1">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50 sticky top-0 z-10">
-                  <tr><th className="p-4 border-b">Fecha</th><th className="p-4 border-b">Material</th><th className="p-4 border-b text-center">Tipo</th><th className="p-4 border-b text-right">Cant.</th><th className="p-4 border-b">Destino / Razón</th><th className="p-4 border-b text-right">Usuario</th></tr>
+              <table className={`w-full text-left border-collapse ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
+                  <tr><th className="p-4 border-b border-slate-200 dark:border-slate-700">Fecha</th><th className="p-4 border-b border-slate-200 dark:border-slate-700">Material</th><th className="p-4 border-b border-slate-200 dark:border-slate-700 text-center">Tipo</th><th className="p-4 border-b border-slate-200 dark:border-slate-700 text-right">Cant.</th><th className="p-4 border-b border-slate-200 dark:border-slate-700">Destino / Razón</th><th className="p-4 border-b border-slate-200 dark:border-slate-700 text-right">Usuario</th></tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className={`divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
                   {historyData.map((log, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50">
-                      <td className="p-4 text-xs font-mono text-slate-500">{log.fecha}</td>
-                      <td className="p-4"><p className="text-sm font-medium">{log.material}</p><p className="text-xs text-slate-400">{log.codigo}</p></td>
-                      <td className="p-4 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${log.tipo==='Entrada'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>{log.tipo}</span></td>
+                    <tr key={idx} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'}`}>
+                      <td className="p-4 text-xs font-mono opacity-70">{log.fecha}</td>
+                      <td className="p-4"><p className="text-sm font-medium">{log.material}</p><p className="text-xs opacity-60">{log.codigo}</p></td>
+                      <td className="p-4 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${log.tipo==='Entrada' ? (isDarkMode ? 'bg-emerald-900/40 text-emerald-400' : 'bg-emerald-100 text-emerald-700') : (isDarkMode ? 'bg-rose-900/40 text-rose-400' : 'bg-rose-100 text-rose-700')}`}>{log.tipo}</span></td>
                       <td className="p-4 text-sm font-bold text-right">{log.cantidad}</td>
-                      <td className="p-4 text-sm text-slate-600"><div className="flex items-center gap-1"><Building2 size={12} className="text-slate-400"/> {log.destino || '-'}</div></td>
-                      <td className="p-4 text-xs text-right text-slate-400 italic">{log.usuario || 'Admin'}</td>
+                      <td className="p-4 text-sm opacity-80"><div className="flex items-center gap-1"><Building2 size={12} className="opacity-50"/> {log.destino || '-'}</div></td>
+                      <td className="p-4 text-xs text-right italic opacity-60">{log.usuario || 'Admin'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1109,16 +1328,17 @@ export default function InventoryDashboard() {
               const item = unitsList.find(u => u.name === name);
               if (item) remove(ref(db, `${UNITS_PATH}/${item.id}`));
             }}
+            isDarkMode={isDarkMode}
           />
         )}
       </main>
 
       {/* TOASTS & MODALES */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
-      <AdminLoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={() => setIsAdmin(true)} addToast={addToast} />
-      <ProfileSetupModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} onSave={handleSaveProfile} />
-      <ConnectedUsersModal isOpen={isConnectedUsersModalOpen} onClose={() => setIsConnectedUsersModalOpen(false)} users={onlineUsersList} currentUserId={user?.uid} />
-      <MovementModal isOpen={isStockModalOpen} onClose={() => setIsStockModalOpen(false)} item={selectedItem} onSave={handleUpdateStock} />
+      <AdminLoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={() => setIsAdmin(true)} addToast={addToast} isDarkMode={isDarkMode} />
+      <ProfileSetupModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} onSave={handleSaveProfile} isDarkMode={isDarkMode} />
+      <ConnectedUsersModal isOpen={isConnectedUsersModalOpen} onClose={() => setIsConnectedUsersModalOpen(false)} users={onlineUsersList} currentUserId={user?.uid} isDarkMode={isDarkMode} />
+      <MovementModal isOpen={isStockModalOpen} onClose={() => setIsStockModalOpen(false)} item={selectedItem} onSave={handleUpdateStock} isDarkMode={isDarkMode} />
       {/* Pasar categorías y unidades DINÁMICAS al formulario */}
       <ProductFormModal 
         isOpen={isFormModalOpen} 
@@ -1127,8 +1347,9 @@ export default function InventoryDashboard() {
         categories={categoriesList.map(c => c.name)} 
         units={unitsList.map(u => u.name)}
         productToEdit={editingItem} 
+        isDarkMode={isDarkMode}
       />
-      <ProductHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} product={historyItem} history={historyData} />
+      <ProductHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} product={historyItem} history={historyData} isDarkMode={isDarkMode} />
     </div>
   );
 }
