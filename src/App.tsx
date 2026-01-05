@@ -51,7 +51,8 @@ import {
   Moon, 
   Sun,
   ChevronRight,
-  FileText // Icono para Cotizaciones
+  FileText,
+  Code // Agregado: Icono faltante importado
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -90,10 +91,41 @@ const INITIAL_DATA = [
 
 // Listas por defecto (strings)
 const DEFAULT_CATEGORIES_LIST = [
-  "TRANSMISIÓN", "PERNOS", "ADHESIVOS", "CHUMAZERAS FLANCH", "HERRAMIENTAS", 
-  "EPP", "FUNDICIÓN", "CUCHILLAS", "IMPERMEABILIZANTES", "LIJAS", 
-  "BALINERAS", "PINTURAS", "METALES", "SOLDADURA", "DISCOS", 
-  "CHUMAZERAS PIE", "TUERCAS", "ARANDELAS DE PRESIÓN", "ARANDELAS LISAS", "GENERAL"
+  "ACCESORIOS",
+  "ADHESIVOS", 
+  "ARANDELAS DE PRESIÓN", 
+  "ARANDELAS LISAS", 
+  "BALINERAS", 
+  "BOMBAS",
+  "CAMISAS",
+  "CHUMAZERAS FLANCH", 
+  "CHUMAZERAS PIE", 
+  "CUCHILLAS", 
+  "DISCOS", 
+  "ELÉCTRICO",
+  "EQUIPOS DE PROTECCIÓN PERSONAL",
+  "EXPANSIÓN",
+  "FUNDICIÓN", 
+  "GENERAL",
+  "HERRAMIENTAS", 
+  "HULE",
+  "IMPERMEABILIZANTES", 
+  "LIJAS", 
+  "LLAVES",
+  "LUBRICANTES",
+  "METALES", 
+  "MOTORES",
+  "PERNOS", 
+  "PIEZAS",
+  "PINTURAS", 
+  "POLEAS",
+  "PRISIONEROS",
+  "SOLDADURA", 
+  "TORNO",
+  "TRANSMISIÓN", 
+  "TUERCAS", 
+  "VARIOS",
+  "VIDRIOS"
 ];
 
 const DEFAULT_UNITS_LIST = [
@@ -134,11 +166,11 @@ const SETTINGS_PATH = `artifacts/${appId}/public/data/settings`;
 const SUPPLIERS_PATH = `artifacts/${appId}/public/data/suppliers`; 
 const PRESENCE_PATH = `artifacts/${appId}/public/data/presence`;
 const REQUISITIONS_PATH = `artifacts/${appId}/public/data/requisitions`;
-const QUOTATIONS_PATH = `artifacts/${appId}/public/data/quotations`; // NUEVA RUTA PARA COTIZACIONES
+const QUOTATIONS_PATH = `artifacts/${appId}/public/data/quotations`;
 const CATEGORIES_PATH = `artifacts/${appId}/public/data/settings/categories`;
 const UNITS_PATH = `artifacts/${appId}/public/data/settings/units`;
 
-// --- HELPERS VISUALES ---
+// --- HELPERS ---
 const getDeviceType = () => {
   const ua = navigator.userAgent;
   if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return "Tablet";
@@ -146,14 +178,13 @@ const getDeviceType = () => {
   return "PC";
 };
 
-// Generador de colores pastel determinista para categorías
 const stringToColor = (str) => {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
   const h = Math.abs(hash) % 360;
-  return `hsl(${h}, 70%, 85%)`; // Pastel claro
+  return `hsl(${h}, 70%, 85%)`; 
 };
 
 const stringToDarkColor = (str) => {
@@ -162,7 +193,7 @@ const stringToDarkColor = (str) => {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
   const h = Math.abs(hash) % 360;
-  return `hsl(${h}, 60%, 25%)`; // Oscuro para texto sobre pastel o background dark mode
+  return `hsl(${h}, 60%, 25%)`; 
 };
 
 // --- COMPONENTES UI ---
@@ -446,7 +477,7 @@ const SuppliersView = ({ isAdmin, suppliersData, inventoryData, addToast, isDark
           </div>
         ) : (
           <div className="max-w-3xl mx-auto"><h3 className={`text-lg font-bold mb-4 text-center ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Comparador de Precios</h3><div className={`p-6 rounded-xl border mb-6 ${isDarkMode ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-100'}`}><label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-blue-300' : 'text-slate-700'}`}>Selecciona un Material para cotizar:</label><select className={inputClass} value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)}><option value="">-- Selecciona Material --</option>{inventoryData.map(item => <option key={item.codigo} value={item.material}>{item.material} ({item.codigo})</option>)}</select>
-          {selectedProduct && (<div className="space-y-4 mt-6"><div className="flex justify-between items-center"><h4 className={`font-semibold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Cotizaciones</h4>{isAdmin && <button onClick={addComparisonRow} className="text-sm text-blue-500 font-medium flex items-center gap-1 hover:text-blue-400"><PlusCircle size={16}/> Agregar Cotización</button>}</div>{comparisonData.map((row, idx) => (<div key={idx} className="flex gap-4 items-center"><select className={inputClass} value={row.supplierId} onChange={e => updateComparisonRow(idx, 'supplierId', e.target.value)} disabled={!isAdmin}><option value="">Selecciona Proveedor...</option>{suppliersData.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select><div className="relative w-32"><span className="absolute left-3 top-3 text-slate-400">C$</span><input type="number" className={`${inputClass} pl-9`} placeholder="0.00" value={row.price} onChange={e => updateComparisonRow(idx, 'price', parseFloat(e.target.value))} disabled={!isAdmin} /></div></div>))}
+          {selectedProduct && (<div className="space-y-4 mt-6"><div className="flex justify-between items-center"><h4 className={`font-semibold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Cotizaciones</h4>{isAdmin && <button onClick={addComparisonRow} className="text-sm text-blue-600 font-medium flex items-center gap-1 hover:text-blue-400"><PlusCircle size={16}/> Agregar Cotización</button>}</div>{comparisonData.map((row, idx) => (<div key={idx} className="flex gap-4 items-center"><select className={inputClass} value={row.supplierId} onChange={e => updateComparisonRow(idx, 'supplierId', e.target.value)} disabled={!isAdmin}><option value="">Selecciona Proveedor...</option>{suppliersData.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select><div className="relative w-32"><span className="absolute left-3 top-3 text-slate-400">C$</span><input type="number" className={`${inputClass} pl-9`} placeholder="0.00" value={row.price} onChange={e => updateComparisonRow(idx, 'price', parseFloat(e.target.value))} disabled={!isAdmin} /></div></div>))}
           {comparisonData.length > 1 && (<div className={`mt-6 p-4 border rounded-xl text-center ${isDarkMode ? 'bg-emerald-900/30 border-emerald-800' : 'bg-emerald-50 border-emerald-200'}`}><p className={`font-bold text-lg ${isDarkMode ? 'text-emerald-400' : 'text-emerald-800'}`}>Mejor opción: {(() => { const valid = comparisonData.filter(d => d.price > 0 && d.supplierId); if(valid.length === 0) return "--"; const best = valid.reduce((min, curr) => curr.price < min.price ? curr : min, valid[0]); const sup = suppliersData.find(s => s.id === best.supplierId); return `${sup?.nombre || 'Desconocido'} a C$${best.price}`; })()}</p></div>)}</div>)}</div></div>
         )}
       </div>
@@ -459,25 +490,14 @@ const QuotationsView = ({ inventoryData, addToast, isAdmin, isDarkMode, logoUrl 
   const [items, setItems] = useState([]);
   const [searchItem, setSearchItem] = useState('');
 
-  // No sincronizamos con Firebase para que sea una sesión temporal de "armar cotización"
-  // O podríamos guardarlo si se desea persistencia, pero por ahora es local.
-
   const handleAddItem = (item) => {
-    if (items.find(i => i.codigo === item.codigo)) {
-      addToast("Ya está en la lista", "info");
-      return;
-    }
+    if (items.find(i => i.codigo === item.codigo)) { addToast("Ya está en la lista", "info"); return; }
     setItems([...items, { ...item, cantidad: 1 }]);
     addToast("Agregado a cotización", "success");
   };
 
-  const handleRemoveItem = (codigo) => {
-    setItems(items.filter(i => i.codigo !== codigo));
-  };
-
-  const handleUpdateQty = (codigo, qty) => {
-    setItems(items.map(i => i.codigo === codigo ? { ...i, cantidad: parseInt(qty) || 0 } : i));
-  };
+  const handleRemoveItem = (codigo) => { setItems(items.filter(i => i.codigo !== codigo)); };
+  const handleUpdateQty = (codigo, qty) => { setItems(items.map(i => i.codigo === codigo ? { ...i, cantidad: parseInt(qty) || 0 } : i)); };
 
   const handlePrint = () => {
     const printWindow = window.open('', '', 'width=800,height=600');
@@ -489,8 +509,8 @@ const QuotationsView = ({ inventoryData, addToast, isAdmin, isDarkMode, logoUrl 
           body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
           .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; border-bottom: 2px solid #047857; padding-bottom: 20px; }
           .logo { max-height: 80px; }
-          h1 { color: #047857; margin: 0; }
-          .meta { margin-bottom: 30px; }
+          h1 { color: #047857; margin: 0; font-size: 24px; }
+          .meta { margin-bottom: 30px; line-height: 1.6; }
           table { width: 100%; border-collapse: collapse; margin-top: 20px; }
           th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
           th { background-color: #f3f4f6; text-align: center; }
@@ -509,8 +529,8 @@ const QuotationsView = ({ inventoryData, addToast, isAdmin, isDarkMode, logoUrl 
         </div>
         
         <div class="meta">
-          <p>Estimados proveedores,</p>
-          <p>Por favor cotizar los siguientes materiales indicando precios unitarios, tiempo de entrega y condiciones de pago.</p>
+          <p><strong>Estimados proveedores,</strong></p>
+          <p>Por medio de la presente solicitamos amablemente nos coticen los siguientes materiales, indicando precios unitarios, tiempo de entrega y condiciones de pago.</p>
         </div>
 
         <table>
@@ -538,7 +558,7 @@ const QuotationsView = ({ inventoryData, addToast, isAdmin, isDarkMode, logoUrl 
         
         <div class="footer">
            <p>Favor enviar cotización formal a la brevedad posible.</p>
-           <p>CONTROL ISC MATAGALPA</p>
+           <p><strong>CONTROL ISC MATAGALPA</strong></p>
         </div>
         
         <script>window.print();</script>
@@ -565,10 +585,7 @@ const QuotationsView = ({ inventoryData, addToast, isAdmin, isDarkMode, logoUrl 
           <div className="flex-1 flex flex-col">
              <div className="flex-1 overflow-y-auto">
                 {items.length === 0 ? (
-                  <div className={`h-full flex flex-col items-center justify-center ${isDarkMode ? 'text-slate-600' : 'text-slate-400'}`}>
-                    <FileText size={48} className="mb-4 opacity-50"/>
-                    <p>Selecciona productos a la izquierda para crear una solicitud.</p>
-                  </div>
+                  <div className={`h-full flex flex-col items-center justify-center ${isDarkMode ? 'text-slate-600' : 'text-slate-400'}`}><FileText size={48} className="mb-4 opacity-50"/><p>Selecciona productos a la izquierda para crear una solicitud.</p></div>
                 ) : (
                   <table className={`w-full text-left text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                      <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
@@ -704,7 +721,7 @@ const RequisitionsView = ({ inventoryData, addToast, isAdmin, isDarkMode }) => {
        <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
           <div className={`w-full lg:w-1/3 border-r flex flex-col ${isDarkMode ? 'border-slate-700 bg-slate-800/30' : 'border-slate-100 bg-slate-50/50'}`}>
              <div className={`p-4 border-b ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}><div className="relative"><Search className="absolute left-3 top-2.5 text-slate-400" size={16}/><input type="text" placeholder="Buscar producto..." className={`w-full pl-9 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300'}`} value={searchItem} onChange={(e) => setSearchItem(e.target.value)}/></div></div>
-             <div className="flex-1 overflow-y-auto p-2">{filteredInventory.map(item => (<div key={item.codigo} className={`flex justify-between items-center p-3 hover:shadow-sm rounded-lg border border-transparent transition-all cursor-pointer group ${isDarkMode ? 'hover:bg-slate-800 hover:border-slate-700' : 'hover:bg-white hover:border-slate-200'}`} onClick={() => isAdmin && handleAddToRequisition(item)}><div className="min-w-0"><p className={`font-medium text-sm truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>{item.material}</p><p className="text-xs text-slate-500">Stock: <span className={item.stock <= 5 ? "text-red-500 font-bold" : ""}>{item.stock}</span></p></div>{isAdmin && <button className="text-emerald-600 opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-emerald-100"><Plus size={16}/></button>}</div>))}</div>
+             <div className="flex-1 overflow-y-auto p-2">{filteredInventory.map(item => (<div key={item.codigo} className={`flex justify-between items-center p-3 hover:shadow-sm rounded-lg border border-transparent transition-all cursor-pointer group ${isDarkMode ? 'hover:bg-slate-800 hover:border-slate-700' : 'hover:bg-white hover:border-slate-200'}`} onClick={() => isAdmin && handleAddToRequisition(item)}><div className="min-w-0"><p className={`font-medium text-sm truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>{item.material}</p><p className="text-xs text-slate-500">Stock: <span className={item.stock <= 5 ? "text-red-500 font-bold" : ""}>{item.stock}</span></p></div>{isAdmin && <button className="text-emerald-500 opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-emerald-500/10"><Plus size={16}/></button>}</div>))}</div>
           </div>
           <div className="flex-1 flex flex-col">
              <div className="flex-1 overflow-y-auto">
@@ -735,7 +752,7 @@ const RequisitionsView = ({ inventoryData, addToast, isAdmin, isDarkMode }) => {
   );
 };
 
-// --- SETTINGS VIEW ---
+// --- SETTINGS VIEW (CONFIGURACIÓN) ---
 const SettingsView = ({ categories, units, onAddCategory, onDeleteCategory, onAddUnit, onDeleteUnit, isDarkMode }) => {
   const [newCat, setNewCat] = useState("");
   const [newUnit, setNewUnit] = useState("");
@@ -1055,6 +1072,7 @@ export default function InventoryDashboard() {
                   <input type="file" ref={fileInputRef} onChange={handleLogoChange} className="hidden" accept="image/*" />
                 </div>
                 <div>
+                  {/* AQUÍ ESTÁ EL CAMBIO PARA EL COLOR DEL TEXTO "CONTROL" */}
                   <h1 className={`text-xl font-bold tracking-tight leading-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
                     CONTROL <span className="text-emerald-500">ISC</span>
                   </h1>
@@ -1118,13 +1136,16 @@ export default function InventoryDashboard() {
                 {isAdmin ? <Unlock size={14}/> : <Lock size={14}/>}
               </button>
             </div>
+             <div className={`text-[10px] text-center mt-2 flex items-center justify-center gap-1 ${isDarkMode ? 'text-slate-600' : 'text-slate-400'}`}>
+               <Code size={10} /> Desarrollado por Jeffry Reyes
+             </div>
         </div>
       </aside>
 
       <main className={`flex-1 overflow-y-auto p-4 md:p-8 transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'ml-20'}`}>
         <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <h2 className={`text-2xl font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{activeTab === 'dashboard' ? 'Visión General' : activeTab === 'inventory' ? 'Inventario' : activeTab === 'requisitions' ? 'Requisiciones' : activeTab === 'quotations' ? 'Solicitud Cotización' : activeTab === 'suppliers' ? 'Proveedores' : activeTab === 'settings' ? 'Configuración' : 'Historial'}</h2>
+            <h2 className={`text-2xl font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{activeTab === 'dashboard' ? 'Visión General' : activeTab === 'inventory' ? 'Inventario' : activeTab === 'requisitions' ? 'Requisiciones y Pedidos' : activeTab === 'quotations' ? 'Solicitud Cotización' : activeTab === 'suppliers' ? 'Proveedores' : activeTab === 'settings' ? 'Configuración' : 'Historial'}</h2>
             <div className="flex items-center gap-2 text-sm mt-1 font-medium"><Wifi size={14} className="text-emerald-500" /><span className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}>Conexión estable • {isAdmin ? 'Edición Habilitada' : 'Solo Lectura'}</span></div>
           </div>
           <button onClick={() => setIsConnectedUsersModalOpen(true)} className={`group flex items-center gap-4 text-sm font-medium px-4 py-2 rounded-full border shadow-sm transition-all hover:scale-105 ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-200'}`}>
@@ -1231,7 +1252,7 @@ export default function InventoryDashboard() {
                     {/* COLUMNA UBICACION ELIMINADA */}
                     <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-right">Precio Unit.</th>
                     <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-right text-emerald-600">Costo + IVA</th>
-                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-right">Stock</th>
+                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-right w-32">Stock</th>
                     <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-center">Estado</th>
                     <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-center">Acciones</th>
                   </tr>
@@ -1344,7 +1365,7 @@ export default function InventoryDashboard() {
         isOpen={isFormModalOpen} 
         onClose={() => setIsFormModalOpen(false)} 
         onSave={handleSaveProduct} 
-        categories={categoriesList.map(c => c.name)} 
+        categories={availableCategories.filter(c => c !== 'Todas')} // Pasamos la lista COMBINADA (sin "Todas")
         units={unitsList.map(u => u.name)}
         productToEdit={editingItem} 
         isDarkMode={isDarkMode}
