@@ -42,7 +42,7 @@ import {
   ListFilter, 
   Building2,
   ShoppingCart, 
-  Printer,       
+  Printer,        
   FilePlus,
   FileClock,
   Activity,
@@ -52,7 +52,8 @@ import {
   Sun,
   ChevronRight,
   FileText,
-  Code // Agregado: Icono faltante importado
+  Code,
+  HardHat
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -66,7 +67,7 @@ import {
 } from 'recharts';
 
 // --- FIREBASE IMPORTS ---
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
   signInAnonymously, 
@@ -89,43 +90,14 @@ const INITIAL_DATA = [
   { codigo: "PE0128", categoria: "PERNOS", material: 'Perno 1/4 x 4"', descripcion: 'Perno 1/4 x 4"', unidad: "UNIDADES", stock: 25, costo: 0.50, aplicaIVA: true },
 ];
 
-// Listas por defecto (strings)
+// Listas por defecto
 const DEFAULT_CATEGORIES_LIST = [
-  "ACCESORIOS",
-  "ADHESIVOS", 
-  "ARANDELAS DE PRESIÓN", 
-  "ARANDELAS LISAS", 
-  "BALINERAS", 
-  "BOMBAS",
-  "CAMISAS",
-  "CHUMAZERAS FLANCH", 
-  "CHUMAZERAS PIE", 
-  "CUCHILLAS", 
-  "DISCOS", 
-  "ELÉCTRICO",
-  "EQUIPOS DE PROTECCIÓN PERSONAL",
-  "EXPANSIÓN",
-  "FUNDICIÓN", 
-  "GENERAL",
-  "HERRAMIENTAS", 
-  "HULE",
-  "IMPERMEABILIZANTES", 
-  "LIJAS", 
-  "LLAVES",
-  "LUBRICANTES",
-  "METALES", 
-  "MOTORES",
-  "PERNOS", 
-  "PIEZAS",
-  "PINTURAS", 
-  "POLEAS",
-  "PRISIONEROS",
-  "SOLDADURA", 
-  "TORNO",
-  "TRANSMISIÓN", 
-  "TUERCAS", 
-  "VARIOS",
-  "VIDRIOS"
+  "ACCESORIOS", "ADHESIVOS", "ARANDELAS DE PRESIÓN", "ARANDELAS LISAS", "BALINERAS", "BOMBAS",
+  "CAMISAS", "CHUMAZERAS FLANCH", "CHUMAZERAS PIE", "CUCHILLAS", "DISCOS", "ELÉCTRICO",
+  "EQUIPOS DE PROTECCIÓN PERSONAL", "EXPANSIÓN", "FUNDICIÓN", "GENERAL", "HERRAMIENTAS", 
+  "HULE", "IMPERMEABILIZANTES", "LIJAS", "LLAVES", "LUBRICANTES", "METALES", "MOTORES",
+  "PERNOS", "PIEZAS", "PINTURAS", "POLEAS", "PRISIONEROS", "SOLDADURA", "TORNO",
+  "TRANSMISIÓN", "TUERCAS", "VARIOS", "VIDRIOS"
 ];
 
 const DEFAULT_UNITS_LIST = [
@@ -155,7 +127,7 @@ const firebaseConfig = {
   measurementId: "G-FJQK2GDTJ9"
 };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
@@ -164,11 +136,13 @@ const DB_PATH = `artifacts/${appId}/public/data/inventory`;
 const HISTORY_PATH = `artifacts/${appId}/public/data/history`;
 const SETTINGS_PATH = `artifacts/${appId}/public/data/settings`;
 const SUPPLIERS_PATH = `artifacts/${appId}/public/data/suppliers`; 
+const PRICE_HISTORY_PATH = `artifacts/${appId}/public/data/price_history`;
 const PRESENCE_PATH = `artifacts/${appId}/public/data/presence`;
 const REQUISITIONS_PATH = `artifacts/${appId}/public/data/requisitions`;
 const QUOTATIONS_PATH = `artifacts/${appId}/public/data/quotations`;
 const CATEGORIES_PATH = `artifacts/${appId}/public/data/settings/categories`;
 const UNITS_PATH = `artifacts/${appId}/public/data/settings/units`;
+const WORKERS_PATH = `artifacts/${appId}/public/data/settings/workers`;
 
 // --- HELPERS ---
 const getDeviceType = () => {
@@ -231,9 +205,7 @@ const Card = ({ title, value, icon: Icon, color = "blue", subtitle, isDarkMode }
     indigo: "from-indigo-500 to-violet-600",
     red: "from-rose-500 to-red-600"
   };
-  
   const bgGradient = gradients[color] || gradients.blue;
-
   return (
     <div className={`relative overflow-hidden p-6 rounded-2xl shadow-sm border transition-all duration-300 hover:shadow-lg hover:scale-[1.02] ${isDarkMode ? 'bg-slate-800/60 border-slate-700' : 'bg-white/80 border-slate-100'} backdrop-blur-sm`}>
       <div className="flex justify-between items-start z-10 relative">
@@ -262,12 +234,6 @@ const Badge = ({ children, type }) => {
     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles[type] || styles.neutral}`}>
       {children}
     </span>
-  );
-};
-
-const StockBar = ({ stock, min = 0, max = 100 }) => {
-  return (
-    <span className={`text-sm font-bold ${stock <= 5 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-400'}`}>{stock}</span>
   );
 };
 
@@ -349,13 +315,33 @@ const ModalWrapper = ({ children, isDarkMode, onClose, title }) => (
   </div>
 );
 
-const MovementModal = ({ isOpen, onClose, item, onSave, isDarkMode }) => {
+const MovementModal = ({ isOpen, onClose, item, onSave, isDarkMode, suppliers = [], workers = [] }) => {
   const [amount, setAmount] = useState(1);
   const [type, setType] = useState('entry'); 
   const [destination, setDestination] = useState(""); 
-  useEffect(() => { if (isOpen) setDestination(type === 'exit' ? COST_CENTERS[0] : "Proveedor / Compra"); }, [isOpen, type]);
+  const [newCost, setNewCost] = useState(""); 
+  const [worker, setWorker] = useState(""); 
+  
+  useEffect(() => { 
+    if (isOpen) {
+       setAmount(1);
+       if (item) setNewCost(item.costo); 
+       setDestination(""); // Siempre resetear destino al abrir o cambiar tipo
+       setWorker(""); // Resetear trabajador
+       
+       // Eliminado el seteo automático de Centro de Costo
+    } 
+  }, [isOpen, type, item]);
+  
   if (!isOpen || !item) return null;
-  const handleSubmit = () => { const finalAmount = parseInt(amount, 10); if (isNaN(finalAmount) || finalAmount <= 0) return; onSave(item.codigo, finalAmount, type, item.stock, item.material, destination); setAmount(1); onClose(); };
+  
+  const handleSubmit = () => { 
+      const finalAmount = parseInt(amount, 10); 
+      if (isNaN(finalAmount) || finalAmount <= 0) return; 
+      onSave(item.codigo, finalAmount, type, item.stock, item.material, destination, newCost, worker); 
+      setAmount(1); 
+      onClose(); 
+  };
   
   const inputClass = `w-full p-3 border rounded-xl focus:outline-none focus:ring-2 transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white focus:ring-blue-500' : 'bg-white border-slate-300 text-slate-800 focus:ring-blue-500'}`;
 
@@ -364,10 +350,64 @@ const MovementModal = ({ isOpen, onClose, item, onSave, isDarkMode }) => {
         <div className="p-6 space-y-5">
           <div><p className={`text-sm mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Material:</p><p className="font-bold text-lg">{item.material}</p><p className="text-xs text-slate-400 font-mono">Stock Actual: {item.stock}</p></div>
           <div className={`flex gap-2 p-1 rounded-xl ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
-            <button className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${type === 'entry' ? 'bg-white text-green-600 shadow-md transform scale-[1.02]' : 'text-slate-500 hover:text-slate-700'} ${isDarkMode && type === 'entry' ? '!bg-slate-700 !text-green-400' : ''}`} onClick={() => setType('entry')}><PlusCircle size={16} className="inline mr-2"/> Entrada</button>
+            <button className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${type === 'entry' ? 'bg-white text-green-600 shadow-md transform scale-[1.02]' : 'text-slate-500 hover:text-slate-700'} ${isDarkMode && type === 'entry' ? '!bg-slate-700 !text-green-400' : ''}`} onClick={() => setType('entry')}><PlusCircle size={16} className="inline mr-2"/> Entrada / Compra</button>
             <button className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${type === 'exit' ? 'bg-white text-red-600 shadow-md transform scale-[1.02]' : 'text-slate-500 hover:text-slate-700'} ${isDarkMode && type === 'exit' ? '!bg-slate-700 !text-red-400' : ''}`} onClick={() => setType('exit')}><MinusCircle size={16} className="inline mr-2"/> Salida</button>
           </div>
-          <div><label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Cantidad</label><input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputClass} autoFocus /></div>
+          <div className="grid grid-cols-2 gap-4">
+             <div><label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Cantidad</label><input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputClass} autoFocus /></div>
+             {type === 'entry' && (
+                 <div><label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Costo Unit.</label><div className="relative"><span className="absolute left-3 top-3 text-slate-400 text-sm">C$</span><input type="number" min="0" step="0.01" value={newCost} onChange={(e) => setNewCost(e.target.value)} className={`${inputClass} pl-8`} /></div></div>
+             )}
+          </div>
+          
+          {/* Selector de Proveedor (Solo visible en Entradas) */}
+          {type === 'entry' && (
+            <div>
+               <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Proveedor
+               </label>
+               <input 
+                  list="suppliers-list"
+                  type="text"
+                  className={inputClass}
+                  value={destination}
+                  onChange={(e) => setDestination(e.target.value)}
+                  placeholder="Escriba o seleccione un proveedor..."
+                />
+                <datalist id="suppliers-list">
+                  {suppliers.map(s => <option key={s.id} value={s.nombre} />)}
+                </datalist>
+                {destination && !suppliers.find(s => s.nombre.toLowerCase() === destination.toLowerCase()) && (
+                    <p className="text-xs text-emerald-500 mt-1 flex items-center gap-1 font-medium"><PlusCircle size={12}/> Nuevo proveedor (se guardará al confirmar)</p>
+                )}
+            </div>
+          )}
+
+          {/* Selector de Trabajador (Solo visible en Salidas) - CENTRO DE COSTO ELIMINADO */}
+          {type === 'exit' && (
+            <div className="space-y-4">
+               <div>
+                 <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                    Trabajador / Solicitante
+                 </label>
+                 <input 
+                    list="workers-list"
+                    type="text"
+                    className={inputClass}
+                    value={worker}
+                    onChange={(e) => setWorker(e.target.value)}
+                    placeholder="Escriba el nombre del trabajador..."
+                  />
+                  <datalist id="workers-list">
+                    {workers.map(w => <option key={w.id} value={w.name} />)}
+                  </datalist>
+                  {worker && !workers.find(w => w.name.toLowerCase() === worker.toLowerCase()) && (
+                      <p className="text-xs text-blue-500 mt-1 flex items-center gap-1 font-medium"><PlusCircle size={12}/> Se registrará como nuevo trabajador</p>
+                  )}
+               </div>
+            </div>
+          )}
+
           {type === 'exit' && (item.stock - amount < 0) && (<div className="p-3 bg-red-500/10 text-red-500 text-sm rounded-lg flex items-start gap-2 border border-red-500/20"><AlertTriangle size={16} className="mt-0.5" /> <span>Advertencia: Stock negativo ({item.stock - amount}).</span></div>)}
         </div>
         <div className={`p-4 border-t flex gap-3 ${isDarkMode ? 'border-slate-700 bg-slate-800' : 'border-slate-100 bg-slate-50'}`}><button onClick={onClose} className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors ${isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-200'}`}>Cancelar</button><button onClick={handleSubmit} className={`flex-1 px-4 py-2.5 text-white font-medium rounded-lg shadow-lg transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2 ${type === 'entry' ? 'bg-green-600 hover:bg-green-700 shadow-green-900/20' : 'bg-red-600 hover:bg-red-700 shadow-red-900/20'}`}><Save size={18} /> Confirmar</button></div>
@@ -423,7 +463,7 @@ const ProductFormModal = ({ isOpen, onClose, onSave, categories, units, productT
 };
 
 const ProductHistoryModal = ({ isOpen, onClose, product, history, isDarkMode }) => {
-  if (!isOpen || !product) return null;
+  if (!isOpen) return null;
   const productHistory = history.filter(h => h.codigo === product.codigo);
   return (
     <ModalWrapper isDarkMode={isDarkMode} onClose={onClose} title="Kardex / Historial">
@@ -436,7 +476,7 @@ const ProductHistoryModal = ({ isOpen, onClose, product, history, isDarkMode }) 
                 {productHistory.map((log, idx) => (
                   <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                     <td className="p-3 font-mono text-xs opacity-70">{log.fecha.split(',')[0]}</td>
-                    <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${log.tipo === 'Entrada' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400'}`}>{log.tipo}</span></td>
+                    <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${log.tipo === 'Entrada' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : (log.tipo === 'Creación' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400')}`}>{log.tipo}</span></td>
                     <td className="p-3 text-right font-bold">{log.cantidad}</td>
                     <td className="p-3 text-right opacity-70">{log.stockNuevo}</td>
                     <td className="p-3 text-xs truncate max-w-[100px]">{log.usuario || 'Admin'}</td>
@@ -451,16 +491,31 @@ const ProductHistoryModal = ({ isOpen, onClose, product, history, isDarkMode }) 
 };
 
 // --- COMPONENTE DE PROVEEDORES ---
-const SuppliersView = ({ isAdmin, suppliersData, inventoryData, addToast, isDarkMode }) => {
+const SuppliersView = ({ isAdmin, suppliersData, inventoryData, addToast, isDarkMode, priceHistoryData = {} }) => {
   const [activeTab, setActiveTab] = useState('list');
   const [newSupplier, setNewSupplier] = useState({ nombre: '', contacto: '', telefono: '' });
   const [selectedProduct, setSelectedProduct] = useState('');
-  const [comparisonData, setComparisonData] = useState([]);
+
   const handleAddSupplier = async (e) => { e.preventDefault(); if(!newSupplier.nombre) return; try { await push(ref(db, SUPPLIERS_PATH), newSupplier); setNewSupplier({ nombre: '', contacto: '', telefono: '' }); addToast("Proveedor agregado con éxito", "success"); } catch (e) { addToast("Error al guardar proveedor", "error"); } };
   const handleDeleteSupplier = async (id) => { if(window.confirm("¿Borrar proveedor?")) { try { await remove(ref(db, `${SUPPLIERS_PATH}/${id}`)); addToast("Proveedor eliminado", "success"); } catch (e) { addToast("Error al eliminar", "error"); } } };
-  const addComparisonRow = () => setComparisonData([...comparisonData, { supplierId: '', price: 0 }]);
-  const updateComparisonRow = (idx, field, value) => { const newData = [...comparisonData]; newData[idx][field] = value; setComparisonData(newData); };
   
+  // Datos automáticos para el comparador
+  const comparisonList = useMemo(() => {
+     if (!selectedProduct) return [];
+     const product = inventoryData.find(i => i.material === selectedProduct);
+     if (!product) return [];
+     
+     // Obtener historial de precios para este producto
+     const history = priceHistoryData[product.codigo] || {};
+     return Object.values(history);
+  }, [selectedProduct, inventoryData, priceHistoryData]);
+
+  // Encontrar el mejor precio
+  const bestOption = useMemo(() => {
+     if (comparisonList.length === 0) return null;
+     return comparisonList.reduce((min, curr) => curr.price < min.price ? curr : min, comparisonList[0]);
+  }, [comparisonList]);
+
   const inputClass = `w-full p-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white focus:ring-blue-500' : 'bg-white border-slate-300 text-slate-800 focus:ring-blue-500'}`;
 
   return (
@@ -472,22 +527,113 @@ const SuppliersView = ({ isAdmin, suppliersData, inventoryData, addToast, isDark
             {isAdmin && (<div><h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Agregar Nuevo Proveedor</h3><form onSubmit={handleAddSupplier} className={`space-y-4 p-5 rounded-xl border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}><input placeholder="Nombre Empresa" className={inputClass} value={newSupplier.nombre} onChange={e => setNewSupplier({...newSupplier, nombre: e.target.value})} required /><input placeholder="Nombre Contacto" className={inputClass} value={newSupplier.contacto} onChange={e => setNewSupplier({...newSupplier, contacto: e.target.value})} /><input placeholder="Teléfono / Email" className={inputClass} value={newSupplier.telefono} onChange={e => setNewSupplier({...newSupplier, telefono: e.target.value})} /><button type="submit" className="w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 transition-all transform hover:scale-[1.02] font-medium shadow-lg shadow-blue-900/20">Guardar Proveedor</button></form></div>)}
             <div className={!isAdmin ? "lg:col-span-2" : ""}>
               <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Lista de Proveedores</h3>
-              <div className="space-y-3">{suppliersData.length === 0 && <p className="text-slate-400 italic">No hay proveedores registrados.</p>}{suppliersData.map(sup => (<div key={sup.id} className={`flex justify-between items-center p-4 border rounded-xl shadow-sm transition-all hover:scale-[1.01] ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}><div><p className={`font-bold ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{sup.nombre}</p><p className="text-xs text-slate-500">{sup.contacto} • {sup.telefono}</p></div>{isAdmin && <button onClick={() => handleDeleteSupplier(sup.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"><Trash2 size={18}/></button>}</div>))}</div>
+              <div className="space-y-3">
+                {suppliersData.length === 0 && <p className="text-slate-400 italic text-center p-4 border rounded-lg border-dashed">No hay proveedores registrados aún.</p>}
+                {suppliersData.map(sup => (<div key={sup.id} className={`flex justify-between items-center p-4 border rounded-xl shadow-sm transition-all hover:scale-[1.01] ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}><div><p className={`font-bold ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{sup.nombre}</p><p className="text-xs text-slate-500">{sup.contacto} • {sup.telefono}</p></div>{isAdmin && <button onClick={() => handleDeleteSupplier(sup.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"><Trash2 size={18}/></button>}</div>))}
+              </div>
             </div>
           </div>
         ) : (
-          <div className="max-w-3xl mx-auto"><h3 className={`text-lg font-bold mb-4 text-center ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Comparador de Precios</h3><div className={`p-6 rounded-xl border mb-6 ${isDarkMode ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-100'}`}><label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-blue-300' : 'text-slate-700'}`}>Selecciona un Material para cotizar:</label><select className={inputClass} value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)}><option value="">-- Selecciona Material --</option>{inventoryData.map(item => <option key={item.codigo} value={item.material}>{item.material} ({item.codigo})</option>)}</select>
-          {selectedProduct && (<div className="space-y-4 mt-6"><div className="flex justify-between items-center"><h4 className={`font-semibold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Cotizaciones</h4>{isAdmin && <button onClick={addComparisonRow} className="text-sm text-blue-600 font-medium flex items-center gap-1 hover:text-blue-400"><PlusCircle size={16}/> Agregar Cotización</button>}</div>{comparisonData.map((row, idx) => (<div key={idx} className="flex gap-4 items-center"><select className={inputClass} value={row.supplierId} onChange={e => updateComparisonRow(idx, 'supplierId', e.target.value)} disabled={!isAdmin}><option value="">Selecciona Proveedor...</option>{suppliersData.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select><div className="relative w-32"><span className="absolute left-3 top-3 text-slate-400">C$</span><input type="number" className={`${inputClass} pl-9`} placeholder="0.00" value={row.price} onChange={e => updateComparisonRow(idx, 'price', parseFloat(e.target.value))} disabled={!isAdmin} /></div></div>))}
-          {comparisonData.length > 1 && (<div className={`mt-6 p-4 border rounded-xl text-center ${isDarkMode ? 'bg-emerald-900/30 border-emerald-800' : 'bg-emerald-50 border-emerald-200'}`}><p className={`font-bold text-lg ${isDarkMode ? 'text-emerald-400' : 'text-emerald-800'}`}>Mejor opción: {(() => { const valid = comparisonData.filter(d => d.price > 0 && d.supplierId); if(valid.length === 0) return "--"; const best = valid.reduce((min, curr) => curr.price < min.price ? curr : min, valid[0]); const sup = suppliersData.find(s => s.id === best.supplierId); return `${sup?.nombre || 'Desconocido'} a C$${best.price}`; })()}</p></div>)}</div>)}</div></div>
+          <div className="max-w-3xl mx-auto">
+             <h3 className={`text-lg font-bold mb-4 text-center ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Comparador de Precios Histórico</h3>
+             <div className={`p-6 rounded-xl border mb-6 ${isDarkMode ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-100'}`}>
+                <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-blue-300' : 'text-slate-700'}`}>Selecciona un Material para comparar:</label>
+                <select className={inputClass} value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)}>
+                   <option value="">-- Selecciona Material --</option>
+                   {inventoryData.map(item => <option key={item.codigo} value={item.material}>{item.material} ({item.codigo})</option>)}
+                </select>
+                
+                {selectedProduct && (
+                   <div className="space-y-4 mt-6">
+                      <div className="flex justify-between items-center"><h4 className={`font-semibold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Historial de Compras</h4></div>
+                      
+                      {comparisonList.length === 0 ? (
+                          <div className="p-4 text-center italic text-slate-400">No hay registros de compras con precio para este producto.</div>
+                      ) : (
+                          <div className="space-y-2">
+                             {comparisonList.map((row, idx) => {
+                                const isBest = bestOption && bestOption.price === row.price;
+                                return (
+                                   <div key={idx} className={`flex justify-between items-center p-3 rounded-lg border ${isBest ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700' : (isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200')}`}>
+                                      <div>
+                                         <p className={`font-bold ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{row.supplierName}</p>
+                                         <p className="text-xs text-slate-500">Última compra: {new Date(row.lastUpdated).toLocaleDateString()}</p>
+                                      </div>
+                                      <div className="text-right">
+                                         <p className={`font-mono font-bold text-lg ${isBest ? 'text-emerald-600' : (isDarkMode ? 'text-slate-300' : 'text-slate-600')}`}>C${row.price.toFixed(2)}</p>
+                                         {isBest && <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Mejor Precio</span>}
+                                      </div>
+                                   </div>
+                                )
+                             })}
+                          </div>
+                      )}
+                      
+                      {bestOption && (
+                         <div className={`mt-6 p-4 border rounded-xl text-center flex flex-col items-center justify-center gap-2 ${isDarkMode ? 'bg-emerald-900/30 border-emerald-800' : 'bg-emerald-50 border-emerald-200'}`}>
+                            <div className="p-2 bg-emerald-100 dark:bg-emerald-900 rounded-full text-emerald-600"><TrendingDown size={24}/></div>
+                            <div>
+                               <p className={`font-medium ${isDarkMode ? 'text-emerald-200' : 'text-emerald-800'}`}>Opción más económica</p>
+                               <p className={`font-bold text-xl ${isDarkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>{bestOption.supplierName} a C${bestOption.price.toFixed(2)}</p>
+                            </div>
+                         </div>
+                      )}
+                   </div>
+                )}
+             </div>
+          </div>
         )}
       </div>
     </div>
   );
 };
 
-// --- NUEVA VISTA: COTIZACIONES (SIN PRECIOS) ---
-const QuotationsView = ({ inventoryData, addToast, isAdmin, isDarkMode, logoUrl }) => {
-  const [items, setItems] = useState([]);
+// --- SETTINGS VIEW (CONFIGURACIÓN) ---
+const SettingsView = ({ categories, units, workers, onAddCategory, onDeleteCategory, onAddUnit, onDeleteUnit, onAddWorker, onDeleteWorker, isDarkMode }) => {
+  const [newCat, setNewCat] = useState("");
+  const [newUnit, setNewUnit] = useState("");
+  const [newWorker, setNewWorker] = useState("");
+
+  const handleAddCat = (e) => { e.preventDefault(); if(newCat) { onAddCategory(newCat); setNewCat(""); } };
+  const handleAddUnit = (e) => { e.preventDefault(); if(newUnit) { onAddUnit(newUnit); setNewUnit(""); } };
+  const handleAddWorker = (e) => { e.preventDefault(); if(newWorker) { onAddWorker(newWorker); setNewWorker(""); } };
+
+  const inputClass = `flex-1 p-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white focus:ring-blue-500' : 'bg-white border-slate-300 text-slate-800 focus:ring-blue-500'}`;
+  
+  return (
+    <div className={`rounded-xl shadow-sm border flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
+      <div className={`p-4 border-b ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}><h3 className={`font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><Settings size={20} className="text-gray-500"/> Configuración del Sistema</h3></div>
+      <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Categorias */}
+        <div className="flex flex-col h-full">
+           <h4 className={`font-bold mb-3 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Categorías de Productos</h4>
+           <form onSubmit={handleAddCat} className="flex gap-2 mb-4"><input className={inputClass} placeholder="Nueva Categoría..." value={newCat} onChange={e => setNewCat(e.target.value.toUpperCase())} /><button type="submit" className="bg-blue-600 text-white p-2.5 rounded-lg hover:bg-blue-700 transition-colors"><Plus size={18}/></button></form>
+           <div className={`flex-1 overflow-y-auto border rounded-xl p-2 space-y-1 max-h-96 ${isDarkMode ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+             {categories.map((cat, idx) => (<div key={`${cat}-${idx}`} className={`flex justify-between items-center p-2 rounded border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-100 text-slate-700'}`}><span className="text-sm font-medium">{cat}</span><button onClick={() => onDeleteCategory(cat)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button></div>))}
+           </div>
+        </div>
+        {/* Unidades */}
+        <div className="flex flex-col h-full">
+           <h4 className={`font-bold mb-3 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Unidades de Medida</h4>
+           <form onSubmit={handleAddUnit} className="flex gap-2 mb-4"><input className={inputClass} placeholder="Nueva Unidad..." value={newUnit} onChange={e => setNewUnit(e.target.value.toUpperCase())} /><button type="submit" className="bg-blue-600 text-white p-2.5 rounded-lg hover:bg-blue-700 transition-colors"><Plus size={18}/></button></form>
+           <div className={`flex-1 overflow-y-auto border rounded-xl p-2 space-y-1 max-h-96 ${isDarkMode ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+             {units.map((unit, idx) => (<div key={`${unit}-${idx}`} className={`flex justify-between items-center p-2 rounded border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-100 text-slate-700'}`}><span className="text-sm font-medium">{unit}</span><button onClick={() => onDeleteUnit(unit)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button></div>))}
+           </div>
+        </div>
+        {/* Trabajadores (NUEVO) */}
+        <div className="flex flex-col h-full">
+           <h4 className={`font-bold mb-3 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Trabajadores</h4>
+           <form onSubmit={handleAddWorker} className="flex gap-2 mb-4"><input className={inputClass} placeholder="Nuevo Trabajador..." value={newWorker} onChange={e => setNewWorker(e.target.value)} /><button type="submit" className="bg-blue-600 text-white p-2.5 rounded-lg hover:bg-blue-700 transition-colors"><Plus size={18}/></button></form>
+           <div className={`flex-1 overflow-y-auto border rounded-xl p-2 space-y-1 max-h-96 ${isDarkMode ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+             {workers.map((w, idx) => (<div key={`${w}-${idx}`} className={`flex justify-between items-center p-2 rounded border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-100 text-slate-700'}`}><span className="text-sm font-medium">{w}</span><button onClick={() => onDeleteWorker(w)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button></div>))}
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const QuotationsView = ({ inventoryData, items, setItems, addToast, isAdmin, isDarkMode, logoUrl }) => {
   const [searchItem, setSearchItem] = useState('');
 
   const handleAddItem = (item) => {
@@ -588,10 +734,10 @@ const QuotationsView = ({ inventoryData, addToast, isAdmin, isDarkMode, logoUrl 
                   <div className={`h-full flex flex-col items-center justify-center ${isDarkMode ? 'text-slate-600' : 'text-slate-400'}`}><FileText size={48} className="mb-4 opacity-50"/><p>Selecciona productos a la izquierda para crear una solicitud.</p></div>
                 ) : (
                   <table className={`w-full text-left text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                     <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
+                      <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
                         <tr><th className="p-3">Código</th><th className="p-3">Material</th><th className="p-3 text-center">Cantidad Solicitada</th><th className="p-3 text-center">Acción</th></tr>
-                     </thead>
-                     <tbody className={`divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
+                      </thead>
+                      <tbody className={`divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
                         {items.map(item => (
                            <tr key={item.codigo} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
                               <td className="p-3 font-mono text-xs opacity-70">{item.codigo}</td>
@@ -608,7 +754,7 @@ const QuotationsView = ({ inventoryData, addToast, isAdmin, isDarkMode, logoUrl 
                               <td className="p-3 text-center"><button onClick={() => handleRemoveItem(item.codigo)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-500/10"><Trash2 size={16}/></button></td>
                            </tr>
                         ))}
-                     </tbody>
+                      </tbody>
                   </table>
                 )}
              </div>
@@ -618,7 +764,6 @@ const QuotationsView = ({ inventoryData, addToast, isAdmin, isDarkMode, logoUrl 
   );
 };
 
-// --- REQUISICIONES (INTERNO) ---
 const RequisitionsView = ({ inventoryData, addToast, isAdmin, isDarkMode }) => {
   const [requisitions, setRequisitions] = useState([]);
   const [searchItem, setSearchItem] = useState('');
@@ -742,43 +887,12 @@ const RequisitionsView = ({ inventoryData, addToast, isAdmin, isDarkMode }) => {
                             <td className="p-3 text-center">{isAdmin && <button onClick={() => handleRemoveRequisition(req.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-500/10"><Trash2 size={16}/></button>}</td>
                          </tr>
                       )})}
-                      {requisitions.length === 0 && (<tr><td colSpan="6" className="p-10 text-center text-slate-400 italic">La lista de requisición está vacía.</td></tr>)}
+                      {requisitions.length === 0 && (<tr><td colSpan="6" className="p-10 text-center italic text-slate-400 border border-dashed rounded m-4 bg-gray-50/50">La lista de requisición está vacía. Añade items desde el menú izquierdo.</td></tr>)}
                    </tbody>
                 </table>
              </div>
           </div>
        </div>
-    </div>
-  );
-};
-
-// --- SETTINGS VIEW (CONFIGURACIÓN) ---
-const SettingsView = ({ categories, units, onAddCategory, onDeleteCategory, onAddUnit, onDeleteUnit, isDarkMode }) => {
-  const [newCat, setNewCat] = useState("");
-  const [newUnit, setNewUnit] = useState("");
-  const handleAddCat = (e) => { e.preventDefault(); if(newCat) { onAddCategory(newCat); setNewCat(""); } };
-  const handleAddUnit = (e) => { e.preventDefault(); if(newUnit) { onAddUnit(newUnit); setNewUnit(""); } };
-  const inputClass = `flex-1 p-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white focus:ring-blue-500' : 'bg-white border-slate-300 text-slate-800 focus:ring-blue-500'}`;
-  
-  return (
-    <div className={`rounded-xl shadow-sm border flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
-      <div className={`p-4 border-b ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}><h3 className={`font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><Settings size={20} className="text-gray-500"/> Configuración del Sistema</h3></div>
-      <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="flex flex-col h-full">
-           <h4 className={`font-bold mb-3 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Categorías de Productos</h4>
-           <form onSubmit={handleAddCat} className="flex gap-2 mb-4"><input className={inputClass} placeholder="Nueva Categoría..." value={newCat} onChange={e => setNewCat(e.target.value.toUpperCase())} /><button type="submit" className="bg-blue-600 text-white p-2.5 rounded-lg hover:bg-blue-700 transition-colors"><Plus size={18}/></button></form>
-           <div className={`flex-1 overflow-y-auto border rounded-xl p-2 space-y-1 max-h-96 ${isDarkMode ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-             {categories.map((cat, idx) => (<div key={`${cat}-${idx}`} className={`flex justify-between items-center p-2 rounded border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-100 text-slate-700'}`}><span className="text-sm font-medium">{cat}</span><button onClick={() => onDeleteCategory(cat)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button></div>))}
-           </div>
-        </div>
-        <div className="flex flex-col h-full">
-           <h4 className={`font-bold mb-3 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Unidades de Medida</h4>
-           <form onSubmit={handleAddUnit} className="flex gap-2 mb-4"><input className={inputClass} placeholder="Nueva Unidad..." value={newUnit} onChange={e => setNewUnit(e.target.value.toUpperCase())} /><button type="submit" className="bg-blue-600 text-white p-2.5 rounded-lg hover:bg-blue-700 transition-colors"><Plus size={18}/></button></form>
-           <div className={`flex-1 overflow-y-auto border rounded-xl p-2 space-y-1 max-h-96 ${isDarkMode ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-             {units.map((unit, idx) => (<div key={`${unit}-${idx}`} className={`flex justify-between items-center p-2 rounded border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-100 text-slate-700'}`}><span className="text-sm font-medium">{unit}</span><button onClick={() => onDeleteUnit(unit)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button></div>))}
-           </div>
-        </div>
-      </div>
     </div>
   );
 };
@@ -797,15 +911,24 @@ export default function InventoryDashboard() {
   const [inventoryData, setInventoryData] = useState([]);
   const [historyData, setHistoryData] = useState([]);
   const [suppliersData, setSuppliersData] = useState([]);
+  const [priceHistoryData, setPriceHistoryData] = useState({}); 
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
   const [myDeviceName, setMyDeviceName] = useState("");
   const [userProfile, setUserProfile] = useState(null); 
   
+  // ESTADO ELEVADO PARA COTIZACIONES (PERSISTENCIA ENTRE PESTAÑAS)
+  const [quotationItems, setQuotationItems] = useState([]);
+
   // ESTADOS DE CONFIGURACIÓN DINÁMICA
   const [categoriesList, setCategoriesList] = useState([]);
   const [unitsList, setUnitsList] = useState([]);
+  const [workersList, setWorkersList] = useState([]); 
+
+  // --- NUEVOS ESTADOS PARA HISTORIAL ---
+  const [historySearchTerm, setHistorySearchTerm] = useState('');
+  const [historyFilterType, setHistoryFilterType] = useState('all'); // 'all', 'entry', 'exit'
   
   // TEMA OSCURO
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('isc_theme') === 'dark');
@@ -821,6 +944,7 @@ export default function InventoryDashboard() {
   const [editingItem, setEditingItem] = useState(null);
   const [historyItem, setHistoryItem] = useState(null); 
   const fileInputRef = useRef(null);
+  const isFirstLoad = useRef(true); // Ref para evitar re-seeding automático
 
   // --- HELPER TOASTS ---
   const addToast = (message, type = 'info') => {
@@ -865,12 +989,28 @@ export default function InventoryDashboard() {
   useEffect(() => {
     if (!user || !userProfile) return; 
     
-    // a) Inventario
+    // a) Inventario - LÓGICA MEJORADA PARA EVITAR ZOMBIES Y BORRADO CORRECTO
     const inventoryRef = ref(db, DB_PATH);
     const unsubscribeInv = onValue(inventoryRef, (snapshot) => {
       const data = snapshot.val();
-      if (!data) { const updates = {}; INITIAL_DATA.forEach(item => { updates[item.codigo] = item; }); update(inventoryRef, updates); } 
-      else { setInventoryData(Object.values(data)); setLoading(false); }
+      
+      // Solo inicializar datos si es la PRIMERA carga Y la base de datos está vacía
+      if (!data && isFirstLoad.current) { 
+         const updates = {}; 
+         INITIAL_DATA.forEach(item => { updates[item.codigo] = item; }); 
+         update(inventoryRef, updates); 
+      } 
+      else { 
+         // Mapear incluyendo la 'firebaseKey' real para borrado seguro
+         const list = data ? Object.entries(data).map(([key, value]) => ({
+             ...value,
+             firebaseKey: key 
+         })) : [];
+         
+         setInventoryData(list); 
+         setLoading(false); 
+      }
+      isFirstLoad.current = false; // Marcar que ya cargó una vez
     });
     
     // b) Historial
@@ -885,7 +1025,14 @@ export default function InventoryDashboard() {
     const logoRef = ref(db, `${SETTINGS_PATH}/logo`);
     const unsubscribeLogo = onValue(logoRef, (snapshot) => { if (snapshot.exists()) setLogoUrl(snapshot.val()); });
 
-    // e) CONFIGURACIÓN (Categorías y Unidades)
+    // e) HISTORIAL DE PRECIOS
+    const priceRef = ref(db, PRICE_HISTORY_PATH);
+    const unsubscribePrice = onValue(priceRef, (snapshot) => {
+       const data = snapshot.val();
+       setPriceHistoryData(data || {});
+    });
+
+    // f) CONFIGURACIÓN (Categorías y Unidades)
     const catRef = ref(db, CATEGORIES_PATH);
     const unsubscribeCat = onValue(catRef, (snapshot) => {
       const data = snapshot.val();
@@ -906,7 +1053,19 @@ export default function InventoryDashboard() {
       }
     });
 
-    // f) PRESENCIA
+    // g) TRABAJADORES
+    const workersRef = ref(db, WORKERS_PATH);
+    const unsubscribeWorkers = onValue(workersRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.entries(data).map(([k, v]) => ({ id: k, name: (typeof v === 'object' && v.name) ? v.name : v }));
+        setWorkersList(list);
+      } else {
+        setWorkersList([]);
+      }
+    });
+
+    // h) PRESENCIA
     const connectedRef = ref(db, ".info/connected");
     const presenceRef = ref(db, PRESENCE_PATH);
     
@@ -928,8 +1087,8 @@ export default function InventoryDashboard() {
     const unsubscribePresenceCount = onValue(presenceRef, (snap) => { if (snap.exists()) setOnlineUsersList(Object.values(snap.val())); else setOnlineUsersList([]); });
 
     return () => { 
-      unsubscribeInv(); unsubscribeHist(); unsubscribeSup(); unsubscribeLogo(); 
-      unsubscribeCat(); unsubscribeUnits();
+      unsubscribeInv(); unsubscribeHist(); unsubscribeSup(); unsubscribeLogo(); unsubscribePrice();
+      unsubscribeCat(); unsubscribeUnits(); unsubscribeWorkers();
       unsubscribeConnected(); unsubscribePresenceCount(); 
     };
   }, [user, userProfile]);
@@ -957,38 +1116,66 @@ export default function InventoryDashboard() {
   };
 
   // --- HANDLERS PARA CONFIGURACIÓN DINÁMICA ---
-  const handleAddCategory = (cat) => {
-    push(ref(db, CATEGORIES_PATH), { name: cat });
-  };
+  const handleAddCategory = (cat) => push(ref(db, CATEGORIES_PATH), { name: cat });
   const handleDeleteCategory = (catName) => {
     const item = categoriesList.find(c => c.name === catName);
-    if (item && item.id) {
-       remove(ref(db, `${CATEGORIES_PATH}/${item.id}`))
-         .then(() => addToast("Categoría eliminada", "success"))
-         .catch(() => addToast("Error al eliminar", "error"));
-    } else {
-       addToast("No se pudo eliminar", "warning");
-    }
+    if (item && item.id) remove(ref(db, `${CATEGORIES_PATH}/${item.id}`));
   };
-  const handleAddUnit = (unit) => {
-     push(ref(db, UNITS_PATH), { name: unit });
-  };
+  const handleAddUnit = (unit) => push(ref(db, UNITS_PATH), { name: unit });
   const handleDeleteUnit = (unitName) => {
     const item = unitsList.find(u => u.name === unitName);
-    if (item && item.id) {
-       remove(ref(db, `${UNITS_PATH}/${item.id}`))
-         .then(() => addToast("Unidad eliminada", "success"))
-         .catch(() => addToast("Error al eliminar", "error"));
-    } else {
-       addToast("No se pudo eliminar", "warning");
-    }
+    if (item && item.id) remove(ref(db, `${UNITS_PATH}/${item.id}`));
+  };
+  const handleAddWorker = (name) => push(ref(db, WORKERS_PATH), { name });
+  const handleDeleteWorker = (name) => {
+    const item = workersList.find(w => w.name === name);
+    if (item && item.id) remove(ref(db, `${WORKERS_PATH}/${item.id}`));
   };
 
-  const handleUpdateStock = async (codigo, cantidad, tipo, stockActual, nombreMaterial, destino) => {
+  const handleUpdateStock = async (codigo, cantidad, tipo, stockActual, nombreMaterial, destino, newCost, workerName) => {
     if (!user || !isAdmin) return;
     const adjustment = tipo === 'entry' ? cantidad : -cantidad;
+    
+    const productUpdates = { stock: stockActual + adjustment };
+    
+    if (tipo === 'entry') {
+        if (newCost && parseFloat(newCost) >= 0) productUpdates.costo = parseFloat(newCost);
+
+        if (destino && newCost) {
+            const supplierName = destino.trim();
+            const exists = suppliersData.some(s => s.nombre.toLowerCase() === supplierName.toLowerCase());
+            const isGeneric = ['proveedor general', 'compra directa', 'otro'].includes(supplierName.toLowerCase());
+
+            if (!exists && !isGeneric && supplierName.length > 2) {
+                try { await push(ref(db, SUPPLIERS_PATH), { nombre: supplierName, contacto: 'Auto-registrado', telefono: '', fechaRegistro: new Date().toLocaleDateString() }); } catch (e) { console.error("Error adding supplier", e); }
+            }
+
+            if (!isGeneric && supplierName.length > 2) {
+               try {
+                  const cleanSupplierKey = supplierName.replace(/[.#$/[\]]/g, "_");
+                  await set(ref(db, `${PRICE_HISTORY_PATH}/${codigo}/${cleanSupplierKey}`), { price: parseFloat(newCost), supplierName: supplierName, lastUpdated: Date.now() });
+               } catch (e) { console.error("Error saving price history", e); }
+            }
+        }
+    }
+
+    if (tipo === 'exit' && workerName) {
+        const wName = workerName.trim();
+        const exists = workersList.some(w => w.name.toLowerCase() === wName.toLowerCase());
+        if (!exists && wName.length > 2) {
+            try { await push(ref(db, WORKERS_PATH), { name: wName }); } catch(e) { console.error("Error adding worker", e); }
+        }
+    }
+
     try {
-      await update(ref(db, `${DB_PATH}/${codigo}`), { stock: stockActual + adjustment });
+      await update(ref(db, `${DB_PATH}/${codigo}`), productUpdates);
+
+      let historyDestino = destino || 'No especificado';
+      // Ajuste: Si es salida, usamos el nombre del trabajador directamente
+      if (tipo === 'exit') {
+          historyDestino = workerName || 'Salida General'; 
+      }
+
       await push(ref(db, HISTORY_PATH), {
         timestamp: Date.now(),
         fecha: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
@@ -996,7 +1183,9 @@ export default function InventoryDashboard() {
         tipo: tipo === 'entry' ? 'Entrada' : 'Salida',
         cantidad, stockAnterior: stockActual, stockNuevo: stockActual + adjustment,
         usuario: userProfile ? userProfile.name : 'Admin', 
-        destino: destino || 'No especificado'
+        destino: historyDestino,
+        costoRegistrado: newCost || null,
+        trabajador: workerName || null 
       });
       addToast("Stock actualizado", "success");
     } catch (e) { addToast("Error al actualizar", "error"); }
@@ -1007,11 +1196,48 @@ export default function InventoryDashboard() {
     try {
       const itemRef = ref(db, `${DB_PATH}/${formData.codigo}`);
       const itemWithDesc = { ...formData, descripcion: formData.material };
-      if (isEditMode) await update(itemRef, itemWithDesc); else { await set(itemRef, itemWithDesc); setActiveTab('inventory'); setSearchTerm(formData.codigo); }
-      addToast(isEditMode ? "Producto actualizado" : "Producto creado", "success");
+      
+      if (isEditMode) {
+          await update(itemRef, itemWithDesc);
+          addToast("Producto actualizado", "success");
+      } else { 
+          await set(itemRef, itemWithDesc); 
+          
+          await push(ref(db, HISTORY_PATH), {
+            timestamp: Date.now(),
+            fecha: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
+            codigo: formData.codigo, 
+            material: formData.material,
+            tipo: 'Creación',
+            cantidad: formData.stock, 
+            stockAnterior: 0, 
+            stockNuevo: formData.stock,
+            usuario: userProfile ? userProfile.name : 'Admin', 
+            destino: 'Sistema',
+          });
+
+          setActiveTab('inventory'); 
+          setSearchTerm(formData.codigo); 
+          addToast("Producto creado", "success");
+      }
     } catch (e) { addToast("Error al guardar", "error"); }
   };
-  const handleDeleteProduct = async (codigo) => { if (!isAdmin) return; if (window.confirm("¿Borrar?")) { try { await remove(ref(db, `${DB_PATH}/${codigo}`)); addToast("Eliminado", "success"); } catch (e) { addToast("Error", "error"); } } };
+
+  // --- LÓGICA DE BORRADO ROBUSTA ---
+  const handleDeleteProduct = async (product) => { 
+      if (!isAdmin) return; 
+      if (window.confirm("¿Estás seguro de borrar este producto?")) { 
+          try { 
+              // Usar firebaseKey si existe (más seguro), si no, usar código
+              const key = product.firebaseKey || product.codigo;
+              await remove(ref(db, `${DB_PATH}/${key}`)); 
+              addToast("Eliminado correctamente", "success"); 
+          } catch (e) { 
+              console.error(e);
+              addToast("Error al eliminar: " + e.message, "error"); 
+          } 
+      } 
+  };
 
   // --- HELPERS PARA MODALES ---
   const handleOpenStockModal = (item) => { setSelectedItem(item); setIsStockModalOpen(true); };
@@ -1022,7 +1248,7 @@ export default function InventoryDashboard() {
   // --- LÓGICA DE CATEGORÍAS PARA FILTROS ---
   const configCategories = categoriesList.map(c => c.name); 
   const inventoryCategories = [...new Set(inventoryData.map(item => item.categoria).filter(Boolean))];
-  const availableCategories = ['Todas', ...new Set([...configCategories, ...inventoryCategories])].sort(); // ORDEN ALFABÉTICO
+  const availableCategories = ['Todas', ...new Set([...configCategories, ...inventoryCategories])].sort(); 
 
   const filteredData = useMemo(() => {
     return inventoryData.filter(item => {
@@ -1034,6 +1260,23 @@ export default function InventoryDashboard() {
       return matchSearch && matchCat && matchStatus;
     });
   }, [searchTerm, selectedCategory, inventoryData, statusFilter]);
+
+  const filteredHistory = useMemo(() => {
+    return historyData.filter(item => {
+      const term = historySearchTerm.toLowerCase();
+      const matchSearch = (item.material || '').toLowerCase().includes(term) ||
+                          (item.codigo || '').toLowerCase().includes(term) ||
+                          (item.usuario || '').toLowerCase().includes(term) ||
+                          (item.destino || '').toLowerCase().includes(term) ||
+                          (item.trabajador || '').toLowerCase().includes(term); 
+      
+      const matchType = historyFilterType === 'all' ||
+                        (historyFilterType === 'entry' && item.tipo === 'Entrada') ||
+                        (historyFilterType === 'exit' && item.tipo === 'Salida');
+      
+      return matchSearch && matchType;
+    });
+  }, [historyData, historySearchTerm, historyFilterType]);
 
   const categories = ['Todas', ...new Set(inventoryData.map(item => item.categoria).filter(Boolean))];
   const rawCategories = [...new Set(inventoryData.map(item => item.categoria).filter(Boolean))].sort();
@@ -1065,15 +1308,13 @@ export default function InventoryDashboard() {
               <div className="flex items-center gap-3">
                 <div className={`relative group ${isAdmin ? 'cursor-pointer' : ''}`} onClick={handleLogoClick} title={isAdmin ? "Cambiar logo" : ""}>
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg overflow-hidden ${isDarkMode ? 'bg-slate-800' : 'bg-white'}`}>
-                    {/* Contenedor de imagen centrado */}
                     <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
                   </div>
                   {isAdmin && <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/50 rounded-xl transition-opacity"><Upload size={16} className="text-white"/></div>}
                   <input type="file" ref={fileInputRef} onChange={handleLogoChange} className="hidden" accept="image/*" />
                 </div>
                 <div>
-                  {/* AQUÍ ESTÁ EL CAMBIO PARA EL COLOR DEL TEXTO "CONTROL" */}
-                  <h1 className={`text-xl font-bold tracking-tight leading-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                  <h1 className={`text-xl font-bold tracking-tight leading-tight ${isDarkMode ? 'text-slate-900' : 'text-slate-900'}`}>
                     CONTROL <span className="text-emerald-500">ISC</span>
                   </h1>
                   <p className={`text-[10px] font-medium tracking-wider uppercase mt-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Matagalpa</p>
@@ -1085,18 +1326,24 @@ export default function InventoryDashboard() {
         </div>
         
         <nav className="flex-1 px-4 py-6 space-y-1">
-          {[{id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'}, {id: 'inventory', icon: Package, label: 'Inventario'}, {id: 'requisitions', icon: ShoppingCart, label: 'Requisiciones'}, {id: 'quotations', icon: FileText, label: 'Cotizaciones'}, {id: 'suppliers', icon: Truck, label: 'Proveedores'}, {id: 'history', icon: History, label: 'Historial'}, {id: 'settings', icon: Settings, label: 'Configuración', adminOnly: true}].map(item => (
-            (!item.adminOnly || isAdmin) && (
+          {[{id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'}, {id: 'inventory', icon: Package, label: 'Inventario'}, {id: 'requisitions', icon: ShoppingCart, label: 'Requisiciones'}, {id: 'quotations', icon: FileText, label: 'Cotizaciones'}, {id: 'suppliers', icon: Truck, label: 'Proveedores'}, {id: 'history', icon: History, label: 'Historial'}, {id: 'settings', icon: Settings, label: 'Configuración'}].map(item => (
               <button 
                 key={item.id} 
-                onClick={() => setActiveTab(item.id)} 
+                onClick={() => {
+                    if (item.id === 'settings' && !isAdmin) {
+                        addToast("Acceso restringido. Ingrese PIN.", "warning");
+                        setIsLoginModalOpen(true);
+                    } else {
+                        setActiveTab(item.id);
+                    }
+                }} 
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden ${activeTab === item.id ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20' : (isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-500 hover:bg-white hover:shadow-sm hover:text-emerald-600')}`}
               >
                 <item.icon size={20} className={`${activeTab === item.id ? 'animate-pulse' : ''}`}/>
                 <span className={`font-medium ${!sidebarOpen && 'hidden md:inline'}`}>{item.label}</span>
+                {item.id === 'settings' && !isAdmin && <Lock size={14} className="ml-auto opacity-50" />}
                 {activeTab === item.id && <div className="absolute right-0 top-0 h-full w-1 bg-white/20"></div>}
               </button>
-            )
           ))}
         </nav>
 
@@ -1149,12 +1396,12 @@ export default function InventoryDashboard() {
             <div className="flex items-center gap-2 text-sm mt-1 font-medium"><Wifi size={14} className="text-emerald-500" /><span className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}>Conexión estable • {isAdmin ? 'Edición Habilitada' : 'Solo Lectura'}</span></div>
           </div>
           <button onClick={() => setIsConnectedUsersModalOpen(true)} className={`group flex items-center gap-4 text-sm font-medium px-4 py-2 rounded-full border shadow-sm transition-all hover:scale-105 ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-200'}`}>
-             <div className="flex items-center gap-2"><Users size={18} className="text-blue-500 group-hover:animate-bounce" /><span className="text-blue-600 font-bold">{onlineUsersList.length}</span><span>Conectados</span></div>
-             <div className={`hidden md:flex items-center gap-2 border-l pl-4 text-xs ${isDarkMode ? 'border-slate-600' : 'border-slate-200'}`}>
-               {userProfile && userProfile.type === 'Móvil' ? <Smartphone size={14} className="text-slate-400"/> : <Laptop size={14} className="text-slate-400"/>}
-               <span className="font-bold">{myDeviceName}</span>
-               <span className="text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold">(Tú)</span>
-             </div>
+              <div className="flex items-center gap-2"><Users size={18} className="text-blue-500 group-hover:animate-bounce" /><span className="text-blue-600 font-bold">{onlineUsersList.length}</span><span>Conectados</span></div>
+              <div className={`hidden md:flex items-center gap-2 border-l pl-4 text-xs ${isDarkMode ? 'border-slate-600' : 'border-slate-200'}`}>
+                {userProfile && userProfile.type === 'Móvil' ? <Smartphone size={14} className="text-slate-400"/> : <Laptop size={14} className="text-slate-400"/>}
+                <span className="font-bold">{myDeviceName}</span>
+                <span className="text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold">(Tú)</span>
+              </div>
           </button>
         </header>
 
@@ -1191,19 +1438,19 @@ export default function InventoryDashboard() {
                 <div className={`p-6 rounded-2xl shadow-sm border h-80 flex flex-col transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
                   <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><Activity size={20} className="text-purple-500"/> Análisis de Rotación (Top 5 Salidas)</h3>
                   <div className="flex-1 w-full min-h-0">
-                     {rotationData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={rotationData} layout="vertical" margin={{ left: 40 }}>
-                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
-                          <XAxis type="number" hide />
-                          <YAxis dataKey="name" type="category" width={150} tick={{fontSize: 11, fill: isDarkMode ? '#94a3b8' : '#64748b'}} />
-                          <Tooltip contentStyle={{backgroundColor: isDarkMode ? '#1e293b' : '#fff', borderColor: isDarkMode ? '#334155' : '#e2e8f0', color: isDarkMode ? '#fff' : '#000'}} cursor={{fill: isDarkMode ? '#334155' : '#f1f5f9'}} />
-                          <Bar dataKey="value" fill="#8B5CF6" radius={[0, 4, 4, 0]} barSize={20} name="Unidades" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                     ) : (
-                       <div className={`h-full flex items-center justify-center italic ${isDarkMode ? 'text-slate-600' : 'text-slate-300'}`}>No hay datos de salidas aún.</div>
-                     )}
+                      {rotationData.length > 0 ? (
+                       <ResponsiveContainer width="100%" height="100%">
+                         <BarChart data={rotationData} layout="vertical" margin={{ left: 40 }}>
+                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
+                           <XAxis type="number" hide />
+                           <YAxis dataKey="name" type="category" width={150} tick={{fontSize: 11, fill: isDarkMode ? '#94a3b8' : '#64748b'}} />
+                           <Tooltip contentStyle={{backgroundColor: isDarkMode ? '#1e293b' : '#fff', borderColor: isDarkMode ? '#334155' : '#e2e8f0', color: isDarkMode ? '#fff' : '#000'}} cursor={{fill: isDarkMode ? '#334155' : '#f1f5f9'}} />
+                           <Bar dataKey="value" fill="#8B5CF6" radius={[0, 4, 4, 0]} barSize={20} name="Unidades" />
+                         </BarChart>
+                       </ResponsiveContainer>
+                      ) : (
+                        <div className={`h-full flex items-center justify-center italic ${isDarkMode ? 'text-slate-600' : 'text-slate-300'}`}>No hay datos de salidas aún.</div>
+                      )}
                   </div>
                 </div>
               </div>
@@ -1249,6 +1496,7 @@ export default function InventoryDashboard() {
                     <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700">Código</th>
                     <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700">Material</th>
                     <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 hidden md:table-cell">Categoría</th>
+                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 hidden md:table-cell">Unidad</th>
                     {/* COLUMNA UBICACION ELIMINADA */}
                     <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-right">Precio Unit.</th>
                     <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-right text-emerald-600">Costo + IVA</th>
@@ -1266,10 +1514,14 @@ export default function InventoryDashboard() {
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${isDarkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-500'}`}>
                              {item.material.charAt(0)}
                           </div>
-                          <p className="text-sm font-semibold">{item.material}</p>
+                          <div>
+                            <p className="text-sm font-semibold">{item.material}</p>
+                            <p className="text-[10px] opacity-60 md:hidden">{item.unidad}</p>
+                          </div>
                         </div>
                       </td>
                       <td className="p-4 text-sm hidden md:table-cell"><span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: isDarkMode ? stringToDarkColor(item.categoria) : stringToColor(item.categoria), color: isDarkMode ? '#ddd' : '#333' }}>{item.categoria}</span></td>
+                      <td className="p-4 text-xs font-medium opacity-70 hidden md:table-cell">{item.unidad}</td>
                       {/* CELDA UBICACION ELIMINADA */}
                       <td className="p-4 text-sm text-right opacity-70">C${(item.costo || 0).toFixed(2)}</td>
                       <td className="p-4 text-sm text-right font-bold text-emerald-600">C${((item.costo||0)*(item.aplicaIVA?1.15:1)).toFixed(2)}</td>
@@ -1286,7 +1538,7 @@ export default function InventoryDashboard() {
                             <>
                               <button onClick={() => handleOpenStockModal(item)} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-blue-900/30 text-blue-400' : 'hover:bg-blue-50 text-blue-600'}`}><PlusCircle size={18}/></button>
                               <button onClick={() => handleOpenEditModal(item)} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-amber-900/30 text-amber-400' : 'hover:bg-amber-50 text-amber-600'}`}><Pencil size={18}/></button>
-                              <button onClick={() => handleDeleteProduct(item.codigo)} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-600'}`}><Trash2 size={18}/></button>
+                              <button onClick={() => handleDeleteProduct(item)} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-600'}`}><Trash2 size={18}/></button>
                             </>
                            )}
                         </div>
@@ -1302,9 +1554,10 @@ export default function InventoryDashboard() {
 
         {activeTab === 'requisitions' && <RequisitionsView isAdmin={isAdmin} inventoryData={inventoryData} addToast={addToast} isDarkMode={isDarkMode} />}
 
-        {activeTab === 'quotations' && <QuotationsView isAdmin={isAdmin} inventoryData={inventoryData} addToast={addToast} isDarkMode={isDarkMode} logoUrl={logoUrl} />}
+        {/* --- PASAR PROPS DE ESTADO DE COTIZACION --- */}
+        {activeTab === 'quotations' && <QuotationsView items={quotationItems} setItems={setQuotationItems} inventoryData={inventoryData} addToast={addToast} isDarkMode={isDarkMode} logoUrl={logoUrl} isAdmin={isAdmin} />}
 
-        {activeTab === 'suppliers' && <SuppliersView isAdmin={isAdmin} suppliersData={suppliersData} inventoryData={inventoryData} addToast={addToast} isDarkMode={isDarkMode} />}
+        {activeTab === 'suppliers' && <SuppliersView isAdmin={isAdmin} suppliersData={suppliersData} inventoryData={inventoryData} addToast={addToast} isDarkMode={isDarkMode} priceHistoryData={priceHistoryData} />}
 
         {activeTab === 'history' && (
           <div className={`rounded-xl shadow-sm border flex flex-col h-[calc(100vh-200px)] animate-in fade-in duration-500 overflow-hidden ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
@@ -1312,13 +1565,33 @@ export default function InventoryDashboard() {
               <h3 className={`font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><History size={20} className="text-emerald-500"/> Historial General</h3>
               <button onClick={() => exportToCSV(historyData, 'historial')} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium shadow-sm transition-colors ${isDarkMode ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Download size={20} /> Exportar</button>
             </div>
+            
+            {/* --- CONTROLES DE BUSQUEDA Y FILTRO PARA HISTORIAL --- */}
+            <div className={`p-4 border-b flex flex-col md:flex-row gap-4 items-center justify-between ${isDarkMode ? 'bg-slate-800/30 border-slate-700' : 'bg-slate-50/50 border-slate-100'}`}>
+               <div className="relative w-full md:w-96">
+                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={16}/>
+                 <input 
+                   type="text" 
+                   placeholder="Buscar en historial (material, código, usuario, proveedor)..." 
+                   className={`w-full pl-9 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-300'}`}
+                   value={historySearchTerm}
+                   onChange={(e) => setHistorySearchTerm(e.target.value)}
+                 />
+               </div>
+               <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                  <button onClick={() => setHistoryFilterType('all')} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap ${historyFilterType === 'all' ? (isDarkMode ? 'bg-slate-200 text-slate-900 border-slate-200' : 'bg-slate-800 text-white border-slate-800') : (isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-white text-slate-600 border-slate-200')}`}>Todas</button>
+                  <button onClick={() => setHistoryFilterType('entry')} className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1 transition-colors whitespace-nowrap ${historyFilterType === 'entry' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 ring-1 ring-emerald-300' : (isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700 hover:text-emerald-400' : 'bg-white text-slate-600 border-slate-200 hover:text-emerald-600')}`}><PlusCircle size={14}/> Entradas</button>
+                  <button onClick={() => setHistoryFilterType('exit')} className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1 transition-colors whitespace-nowrap ${historyFilterType === 'exit' ? 'bg-rose-100 text-rose-800 border-rose-200 ring-1 ring-rose-300' : (isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700 hover:text-rose-400' : 'bg-white text-slate-600 border-slate-200 hover:text-rose-600')}`}><MinusCircle size={14}/> Salidas</button>
+               </div>
+            </div>
+
             <div className="overflow-auto flex-1">
               <table className={`w-full text-left border-collapse ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                 <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
-                  <tr><th className="p-4 border-b border-slate-200 dark:border-slate-700">Fecha</th><th className="p-4 border-b border-slate-200 dark:border-slate-700">Material</th><th className="p-4 border-b border-slate-200 dark:border-slate-700 text-center">Tipo</th><th className="p-4 border-b border-slate-200 dark:border-slate-700 text-right">Cant.</th><th className="p-4 border-b border-slate-200 dark:border-slate-700">Destino / Razón</th><th className="p-4 border-b border-slate-200 dark:border-slate-700 text-right">Usuario</th></tr>
+                  <tr><th className="p-4 border-b border-slate-200 dark:border-slate-700">Fecha</th><th className="p-4 border-b border-slate-200 dark:border-slate-700">Material</th><th className="p-4 border-b border-slate-200 dark:border-slate-700 text-center">Tipo</th><th className="p-4 border-b border-slate-200 dark:border-slate-700 text-right">Cant.</th><th className="p-4 border-b border-slate-200 dark:border-slate-700">Origen / Destino</th><th className="p-4 border-b border-slate-200 dark:border-slate-700 text-right">Usuario</th></tr>
                 </thead>
                 <tbody className={`divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
-                  {historyData.map((log, idx) => (
+                  {filteredHistory.map((log, idx) => (
                     <tr key={idx} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'}`}>
                       <td className="p-4 text-xs font-mono opacity-70">{log.fecha}</td>
                       <td className="p-4"><p className="text-sm font-medium">{log.material}</p><p className="text-xs opacity-60">{log.codigo}</p></td>
@@ -1328,6 +1601,9 @@ export default function InventoryDashboard() {
                       <td className="p-4 text-xs text-right italic opacity-60">{log.usuario || 'Admin'}</td>
                     </tr>
                   ))}
+                  {filteredHistory.length === 0 && (
+                    <tr><td colSpan="6" className="p-10 text-center italic opacity-50">No se encontraron registros en el historial.</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1339,6 +1615,7 @@ export default function InventoryDashboard() {
           <SettingsView 
             categories={categoriesList.map(c => c.name)} 
             units={unitsList.map(u => u.name)}
+            workers={workersList.map(w => w.name)}
             onAddCategory={(name) => push(ref(db, CATEGORIES_PATH), { name })}
             onDeleteCategory={(name) => {
               const item = categoriesList.find(c => c.name === name);
@@ -1349,6 +1626,8 @@ export default function InventoryDashboard() {
               const item = unitsList.find(u => u.name === name);
               if (item) remove(ref(db, `${UNITS_PATH}/${item.id}`));
             }}
+            onAddWorker={handleAddWorker}
+            onDeleteWorker={handleDeleteWorker}
             isDarkMode={isDarkMode}
           />
         )}
@@ -1359,7 +1638,7 @@ export default function InventoryDashboard() {
       <AdminLoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={() => setIsAdmin(true)} addToast={addToast} isDarkMode={isDarkMode} />
       <ProfileSetupModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} onSave={handleSaveProfile} isDarkMode={isDarkMode} />
       <ConnectedUsersModal isOpen={isConnectedUsersModalOpen} onClose={() => setIsConnectedUsersModalOpen(false)} users={onlineUsersList} currentUserId={user?.uid} isDarkMode={isDarkMode} />
-      <MovementModal isOpen={isStockModalOpen} onClose={() => setIsStockModalOpen(false)} item={selectedItem} onSave={handleUpdateStock} isDarkMode={isDarkMode} />
+      <MovementModal isOpen={isStockModalOpen} onClose={() => setIsStockModalOpen(false)} item={selectedItem} onSave={handleUpdateStock} isDarkMode={isDarkMode} suppliers={suppliersData} workers={workersList} />
       {/* Pasar categorías y unidades DINÁMICAS al formulario */}
       <ProductFormModal 
         isOpen={isFormModalOpen} 
