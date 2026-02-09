@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  Code2, 
   User, 
   Wrench,
   Lock,
@@ -13,7 +12,7 @@ import {
 } from 'lucide-react';
 
 /**
- * MaintenancePage - Versión Profesional Simplificada
+ * MaintenancePage - Versión Estilizada y Simplificada
  * Desarrollado por Jeffry Reyes
  */
 const App = () => {
@@ -51,7 +50,7 @@ const App = () => {
   return (
     <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4 font-sans text-slate-200 overflow-hidden relative">
       
-      {/* Efectos de fondo animados */}
+      {/* Efectos de fondo animados sutiles */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px] animate-pulse"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
 
@@ -59,7 +58,7 @@ const App = () => {
         {/* Card Principal */}
         <div className="bg-slate-800/40 rounded-[2.5rem] shadow-2xl border border-slate-700/50 backdrop-blur-2xl overflow-hidden p-8 md:p-12 relative text-center">
           
-          {/* Badge de Estado */}
+          {/* Badge de Estado del Sistema */}
           <div className="absolute top-6 right-8 flex items-center gap-2 bg-slate-900/60 px-3 py-1.5 rounded-full border border-slate-700 border-opacity-50">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>
             <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest font-mono">Core Online</span>
@@ -72,7 +71,7 @@ const App = () => {
             </div>
           </div>
 
-          {/* Título */}
+          {/* Título y Descripción */}
           <h1 className="text-3xl md:text-4xl font-black text-white mb-4 tracking-tighter uppercase italic">
             Mantenimiento <span className="text-blue-500 font-normal">Técnico</span>
           </h1>
@@ -81,7 +80,7 @@ const App = () => {
             El acceso a la interfaz de usuario se encuentra <span className="text-blue-400 font-bold underline underline-offset-4 tracking-wide">suspendido</span> mientras se completan las actualizaciones.
           </p>
 
-          {/* Bloque de Autoría */}
+          {/* Bloque Central de Autoría (Simplificado) */}
           <div className="space-y-4 mb-8">
             <div className="flex flex-col gap-6 p-7 bg-slate-900/60 rounded-[2rem] border border-slate-700/50 text-left relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
@@ -97,16 +96,6 @@ const App = () => {
                   <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.25em] mb-0.5 font-mono">Autor y Desarrollador</p>
                   <p className="text-2xl font-bold text-white tracking-tight">Jeffry Reyes</p>
                 </div>
-              </div>
-              
-              {/* Cuerpo: Propiedad */}
-              <div className="flex items-start gap-4 pt-5 border-t border-slate-800 relative">
-                <div className="bg-slate-800 p-2.5 rounded-xl text-slate-400">
-                  <Code2 size={20} />
-                </div>
-                <p className="text-sm text-slate-400 leading-relaxed">
-                  Arquitectura lógica, bases de datos y diseño de interfaz protegidos bajo <span className="text-slate-200 font-semibold font-mono">propiedad intelectual</span> del autor.
-                </p>
               </div>
 
               {/* Botones de Contacto */}
@@ -141,7 +130,7 @@ const App = () => {
               </p>
             </div>
             <div className="bg-slate-900/40 px-3 py-1 rounded-md border border-slate-800">
-              <p className="text-[9px] font-mono text-slate-700 uppercase tracking-tighter">Build: 77-2442-REV</p>
+              <p className="text-[9px] font-mono text-slate-700 uppercase tracking-tighter">Build ID: 77-2442-REV</p>
             </div>
           </div>
         </div>
