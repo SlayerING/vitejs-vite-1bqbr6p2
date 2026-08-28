@@ -1,1655 +1,3180 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
+  Coffee, 
+  Leaf, 
+  MapPin, 
+  QrCode, 
   LayoutDashboard, 
+  Users, 
   Package, 
+  DollarSign, 
   Search, 
-  AlertTriangle, 
-  TrendingUp, 
-  TrendingDown, 
-  Filter, 
-  Menu, 
-  X, 
-  PieChart as PieChartIcon, 
-  BarChart as BarChartIcon, 
-  PlusCircle, 
-  MinusCircle, 
-  Save, 
-  XCircle, 
   Plus, 
-  Cloud, 
-  Wifi, 
-  Lock, 
-  Unlock, 
   Pencil, 
   Trash2, 
-  History, 
-  DollarSign, 
-  Upload, 
-  Percent, 
-  Truck, 
-  Users, 
-  CheckCircle2, 
-  Download, 
-  Shield, 
-  Eye, 
-  User, 
-  Monitor, 
-  Laptop, 
-  Smartphone, 
-  CheckCircle, 
-  Info, 
-  AlertCircle, 
-  ListFilter, 
-  Building2,
-  ShoppingCart, 
-  Printer,        
-  FilePlus,
-  FileClock,
-  Activity,
-  QrCode,
-  Settings,
+  Sun, 
   Moon, 
-  Sun,
+  Save, 
+  XCircle, 
+  CheckCircle, 
+  AlertTriangle, 
   ChevronRight,
-  FileText,
-  Code,
-  HardHat
+  Droplet,
+  Truck,
+  Award,
+  BookOpen,
+  Sparkles,
+  Globe,
+  ShoppingCart,
+  Send,
+  Building2,
+  Calculator,
+  Compass,
+  Check,
+  TrendingUp,
+  Inbox,
+  User,
+  LogIn,
+  LogOut,
+  UserPlus,
+  Edit3,
+  ShieldCheck,
+  GraduationCap,
+  Calendar,
+  CheckSquare,
+  X,
+  BadgePercent,
+  CircleDollarSign,
+  Activity,
+  ArrowUpRight,
+  ArrowDownRight,
+  LineChart as LineChartIcon
 } from 'lucide-react';
 import { 
   BarChart, 
   Bar, 
+  PieChart,
+  Pie,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  Cell
+  Cell,
+  Legend
 } from 'recharts';
 
-// --- FIREBASE IMPORTS ---
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInAnonymously, 
-  onAuthStateChanged 
-} from 'firebase/auth';
-import { 
-  getDatabase, 
-  ref, 
-  onValue, 
-  set, 
-  update, 
-  remove, 
-  push, 
-  onDisconnect 
-} from 'firebase/database';
+const KG_PER_QUINTAL = 46;
+const KG_PER_EXPORT_BAG = 69;
+const NY_BENCHMARK_PRICE_USD_KG = 4.20; // Precio de referencia genérico bolsa NY (~$1.90/lb)
+const LBS_PER_QUINTAL = 100; // 1 quintal = 100 lbs = 46 kg aprox
 
-// --- DATOS INICIALES ---
-const INITIAL_DATA = [
-  { codigo: "TR0134", categoria: "TRANSMISIÓN", material: "Bandas viejas", descripcion: "Bandas viejas", unidad: "UNIDADES", stock: 86, costo: 0, aplicaIVA: true },
-  { codigo: "PE0128", categoria: "PERNOS", material: 'Perno 1/4 x 4"', descripcion: 'Perno 1/4 x 4"', unidad: "UNIDADES", stock: 25, costo: 0.50, aplicaIVA: true },
+const ICE_FUTURES_CONTRACTS = [
+  { contract: "KC Sep 2026", priceCentsLb: 248.65, change: +3.40, changePct: "+1.39%", high: 251.20, low: 244.10, volume: 18450, status: "Activo / Principal" },
+  { contract: "KC Dic 2026", priceCentsLb: 244.30, change: +2.85, changePct: "+1.18%", high: 246.50, low: 240.80, volume: 12100, status: "Activo" },
+  { contract: "KC Mar 2027", priceCentsLb: 241.15, change: +1.90, changePct: "+0.79%", high: 243.00, low: 238.50, volume: 6840, status: "Activo" },
+  { contract: "KC May 2027", priceCentsLb: 238.90, change: -0.45, changePct: "-0.19%", high: 240.10, low: 237.20, volume: 3290, status: "Activo" }
 ];
 
-// Listas por defecto
-const DEFAULT_CATEGORIES_LIST = [
-  "ACCESORIOS", "ADHESIVOS", "ARANDELAS DE PRESIÓN", "ARANDELAS LISAS", "BALINERAS", "BOMBAS",
-  "CAMISAS", "CHUMAZERAS FLANCH", "CHUMAZERAS PIE", "CUCHILLAS", "DISCOS", "ELÉCTRICO",
-  "EQUIPOS DE PROTECCIÓN PERSONAL", "EXPANSIÓN", "FUNDICIÓN", "GENERAL", "HERRAMIENTAS", 
-  "HULE", "IMPERMEABILIZANTES", "LIJAS", "LLAVES", "LUBRICANTES", "METALES", "MOTORES",
-  "PERNOS", "PIEZAS", "PINTURAS", "POLEAS", "PRISIONEROS", "SOLDADURA", "TORNO",
-  "TRANSMISIÓN", "TUERCAS", "VARIOS", "VIDRIOS"
-];
-
-const DEFAULT_UNITS_LIST = [
-  "UNIDADES", "JUEGOS", "GALONES", "LIBRAS", "METROS", "CAJAS", "LITROS", "PARES", "ROLLOS", "BOLSAS", "PIEZAS"
-];
-
-const COST_CENTERS = [
-  "Mantenimiento General",
-  "Infraestructura",
-  "Administración",
-  "Producción",
-  "Ventas / Salida Cliente",
-  "Merma / Daño",
-  "Uso Interno"
-];
-
-const ADMIN_PIN = "2442"; 
-
-const firebaseConfig = {
-  apiKey: "AIzaSyC9Uu-ZhekT6xffjt-nTLi7vX6pqUJmpKY",
-  authDomain: "control-isc.firebaseapp.com",
-  databaseURL: "https://control-isc-default-rtdb.firebaseio.com",
-  projectId: "control-isc",
-  storageBucket: "control-isc.firebasestorage.app",
-  messagingSenderId: "496031563894",
-  appId: "1:496031563894:web:da5768fee46f04b60b5f57",
-  measurementId: "G-FJQK2GDTJ9"
+const HISTORICAL_MARKET_TRENDS = {
+  "1M": [
+    { date: "01 Ago", nyCommodityPrice: 2.30, nicaTradePrice: 9.50 },
+    { date: "08 Ago", nyCommodityPrice: 2.36, nicaTradePrice: 9.60 },
+    { date: "15 Ago", nyCommodityPrice: 2.41, nicaTradePrice: 9.75 },
+    { date: "22 Ago", nyCommodityPrice: 2.45, nicaTradePrice: 9.80 },
+    { date: "28 Ago", nyCommodityPrice: 2.49, nicaTradePrice: 9.80 }
+  ],
+  "6M": [
+    { date: "Mar 2026", nyCommodityPrice: 2.10, nicaTradePrice: 9.20 },
+    { date: "Abr 2026", nyCommodityPrice: 2.22, nicaTradePrice: 9.35 },
+    { date: "May 2026", nyCommodityPrice: 2.18, nicaTradePrice: 9.40 },
+    { date: "Jun 2026", nyCommodityPrice: 2.35, nicaTradePrice: 9.60 },
+    { date: "Jul 2026", nyCommodityPrice: 2.42, nicaTradePrice: 9.70 },
+    { date: "Ago 2026", nyCommodityPrice: 2.49, nicaTradePrice: 9.80 }
+  ],
+  "1Y": [
+    { date: "Sep 2025", nyCommodityPrice: 1.85, nicaTradePrice: 8.80 },
+    { date: "Nov 2025", nyCommodityPrice: 1.95, nicaTradePrice: 8.90 },
+    { date: "Ene 2026", nyCommodityPrice: 2.05, nicaTradePrice: 9.10 },
+    { date: "Mar 2026", nyCommodityPrice: 2.10, nicaTradePrice: 9.20 },
+    { date: "May 2026", nyCommodityPrice: 2.18, nicaTradePrice: 9.40 },
+    { date: "Ago 2026", nyCommodityPrice: 2.49, nicaTradePrice: 9.80 }
+  ]
 };
 
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getDatabase(app);
-
-const appId = "inventario_compartido";
-const DB_PATH = `artifacts/${appId}/public/data/inventory`;
-const HISTORY_PATH = `artifacts/${appId}/public/data/history`;
-const SETTINGS_PATH = `artifacts/${appId}/public/data/settings`;
-const SUPPLIERS_PATH = `artifacts/${appId}/public/data/suppliers`; 
-const PRICE_HISTORY_PATH = `artifacts/${appId}/public/data/price_history`;
-const PRESENCE_PATH = `artifacts/${appId}/public/data/presence`;
-const REQUISITIONS_PATH = `artifacts/${appId}/public/data/requisitions`;
-const QUOTATIONS_PATH = `artifacts/${appId}/public/data/quotations`;
-const CATEGORIES_PATH = `artifacts/${appId}/public/data/settings/categories`;
-const UNITS_PATH = `artifacts/${appId}/public/data/settings/units`;
-const WORKERS_PATH = `artifacts/${appId}/public/data/settings/workers`;
-
-// --- HELPERS ---
-const getDeviceType = () => {
-  const ua = navigator.userAgent;
-  if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return "Tablet";
-  if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated/.test(ua)) return "Móvil";
-  return "PC";
+const CURRENCY_RATES = {
+  USD: { symbol: '$', rate: 1, label: 'USD ($ Dólar)' },
+  EUR: { symbol: '€', rate: 0.92, label: 'EUR (€ Euro)' },
+  NIO: { symbol: 'C$', rate: 36.75, label: 'NIO (C$ Córdoba)' },
+  GBP: { symbol: '£', rate: 0.78, label: 'GBP (£ Libra)' }
 };
 
-const stringToColor = (str) => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+const formatPrice = (amountUSD, currency = 'USD') => {
+  const conf = CURRENCY_RATES[currency] || CURRENCY_RATES.USD;
+  const converted = (amountUSD || 0) * conf.rate;
+  return `${conf.symbol}${converted.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+const formatNumberCurrency = (amountUSD, currency = 'USD') => {
+  const conf = CURRENCY_RATES[currency] || CURRENCY_RATES.USD;
+  return Number(((amountUSD || 0) * conf.rate).toFixed(2));
+};
+
+const getAltitudeClassification = (altitude) => {
+  if (altitude >= 1500) return { label: 'SHG+ (Estrictamente Altura Plus)', color: 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-800' };
+  if (altitude >= 1350) return { label: 'SHG (Estrictamente Altura)', color: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800' };
+  if (altitude >= 1200) return { label: 'HG (Altura)', color: 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/40 dark:text-teal-300 dark:border-teal-800' };
+  return { label: 'Estándar', color: 'bg-stone-100 text-stone-800 border-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:border-stone-700' };
+};
+
+const TRANSLATIONS = {
+  es: {
+    appName: "NicaTrade",
+    appSubtitle: "Comercio Directo & Precio Real de Origen • Nicaragua 2026",
+    roleProducer: "Portal Caficultor",
+    roleBuyer: "Portal Comprador",
+    buyerType: "Comprador / Tostaduría Internacional",
+    producerType: "Productor / Dueño de Finca",
+    navProducerDashboard: "Panel Financiero & Rendimiento",
+    navBatches: "Gestión de Lotes & Precios",
+    navNYExchange: "Bolsa de Nueva York (ICE Coffee 'C')",
+    navCostCalculator: "Calculadora de Costos & Margen Neto",
+    navProducerOrders: "Ofertas & Solicitudes Comerciales",
+    navFarmers: "Directorio de Fincas",
+    navMyProfile: "Mi Perfil de Finca & Costos",
+    navInstitutional: "Ecosistema de Exportación (CONATRADEC / CETREX)",
+    navTraining: "Capacitaciones & Certificaciones de Calidad",
+    navMarketplace: "Mercado de Microlotes Verdes",
+    navCuppingLab: "Laboratorio de Cata SCA",
+    navExportCalc: "Cotizador FOB & Logística",
+    navTraceability: "Pasaporte Digital de Autenticidad",
+    navBuyerOrders: "Mis Muestras & Reservas",
+    navTerroirs: "Terruños de Nicaragua",
+    navBuyerProfile: "Mi Perfil de Tostaduría",
+    totalVolume: "Volumen Total en Cosecha",
+    netProfit: "Ganancia Neta Directa a Finca",
+    valuePremium: "Sobreprecio Real vs Bolsa NY",
+    avgScore: "Calidad Promedio SCA",
+    processVolume: "Volumen por Proceso (Kg / qq)",
+    profitabilityDist: "Utilidad Neta por Variedad / Lote",
+    searchLotPlaceholder: "Buscar por lote, variedad, productor, región...",
+    registerLot: "Registrar Nuevo Lote",
+    lotCol: "Lote",
+    originCol: "Productor & Finca",
+    varietyCol: "Variedad / Proceso",
+    volumeCol: "Stock Disponible",
+    scoreCol: "SCA",
+    priceCol: "Precio Real / Kg",
+    statusCol: "Estado",
+    actionsCol: "Acciones",
+    requestSample: "Pedir Muestra Comercial (500g)",
+    reserveLot: "Comprar / Reservar Lote",
+    altitudeLabel: "Altitud",
+    fairTradeBadge: "Venta Directa sin Intermediarios",
+    tastingNotes: "Perfil en Taza",
+    economicYield: "Rendimiento Financiero",
+    satelliteMap: "Geolocalización Satelital Google Maps",
+    chainOfCustody: "Cadena de Custodia & Trillado Verificado",
+    calcTotal: "Total Comercial Estimado",
+    sendRequest: "Enviar Oferta Directa al Productor",
+    cancel: "Cancelar",
+    save: "Guardar",
+    producerDirectory: "Directorio de Productores & Fincas Nicas",
+    producerDirectorySub: "Trato directo con los caficultores sin intermediarios opacos.",
+    marketplaceTitle: "Mercado de Cafés de Especialidad de Nicaragua",
+    currencyNotice: "Precios convertidos en tiempo real a",
+    orderSentToast: "¡Propuesta comercial enviada directamente a la finca!",
+    lotSavedToast: "Lote registrado con su estructura de precio y costo",
+    lotDeletedToast: "Lote eliminado de la plataforma",
+    farmerSavedToast: "Perfil y parámetros de rentabilidad actualizados",
+    trainingRequestedToast: "¡Solicitud de capacitación enviada con éxito!",
+    authLoginSuccess: "¡Sesión iniciada con éxito!",
+    authRegisterSuccess: "¡Cuenta creada exitosamente!"
+  },
+  en: {
+    appName: "NicaTrade",
+    appSubtitle: "Direct Trade & Real Farmgate Pricing • Nicaragua 2026",
+    roleProducer: "Grower Portal",
+    roleBuyer: "Buyer Portal",
+    buyerType: "Coffee Buyer / International Roaster",
+    producerType: "Coffee Producer / Estate Owner",
+    navProducerDashboard: "Financial Yield Dashboard",
+    navBatches: "Batch & Pricing Management",
+    navNYExchange: "NY Stock Exchange (ICE Coffee 'C')",
+    navCostCalculator: "Cost & Net Margin Calculator",
+    navProducerOrders: "Direct Trade Inquiries & Bookings",
+    navFarmers: "Growers Directory",
+    navMyProfile: "Farm Profile & Economics",
+    navInstitutional: "Export Ecosystem (CONATRADEC / CETREX)",
+    navTraining: "Quality Training & Certification Programs",
+    navMarketplace: "Specialty Green Coffee Market",
+    navCuppingLab: "SCA Digital Cupping Lab",
+    navExportCalc: "FOB & Export Logistics Calc",
+    navTraceability: "Digital Authenticity Passport",
+    navBuyerOrders: "My Samples & Bookings",
+    navTerroirs: "Nicaragua Terroirs",
+    navBuyerProfile: "My Roastery Profile",
+    totalVolume: "Total Harvest Volume",
+    netProfit: "Net Direct Farm Profit",
+    valuePremium: "Premium vs NY Commodity Base",
+    avgScore: "Avg SCA Cupping Score",
+    processVolume: "Volume by Process (Kg / qq)",
+    profitabilityDist: "Net Profit by Variety / Lot",
+    searchLotPlaceholder: "Search batch, variety, farmer, terroir...",
+    registerLot: "Register New Batch",
+    lotCol: "Batch ID",
+    originCol: "Farmer & Farm",
+    varietyCol: "Variety / Process",
+    volumeCol: "Available Stock",
+    scoreCol: "SCA Score",
+    priceCol: "Real Price / Kg",
+    statusCol: "Status",
+    actionsCol: "Actions",
+    requestSample: "Request Sample (500g)",
+    reserveLot: "Book Full Lot",
+    altitudeLabel: "Elevation",
+    fairTradeBadge: "Direct Farmgate Trade",
+    tastingNotes: "Cupping Descriptors",
+    economicYield: "Economic Yield",
+    satelliteMap: "Google Maps Satellite Positioning",
+    chainOfCustody: "Chain of Custody & Verified Dry Mill",
+    calcTotal: "Estimated Commercial Total",
+    sendRequest: "Send Offer to Grower",
+    cancel: "Cancel",
+    save: "Save",
+    producerDirectory: "Nicaraguan Coffee Producers Directory",
+    producerDirectorySub: "Direct business with growers without intermediaries.",
+    marketplaceTitle: "Nicaragua Specialty Green Coffee Marketplace",
+    currencyNotice: "Prices converted in real-time to",
+    orderSentToast: "Direct inquiry submitted successfully!",
+    lotSavedToast: "Batch saved with cost & pricing structure",
+    lotDeletedToast: "Batch removed from platform",
+    farmerSavedToast: "Farm profile & financial parameters updated",
+    trainingRequestedToast: "Training request submitted successfully!",
+    authLoginSuccess: "Welcome back!",
+    authRegisterSuccess: "Account registered successfully!"
   }
-  const h = Math.abs(hash) % 360;
-  return `hsl(${h}, 70%, 85%)`; 
 };
 
-const stringToDarkColor = (str) => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+const STATE_TRAINING_PROGRAMS = [
+  {
+    id: "prog-conatradec-1",
+    entity: "CONATRADEC",
+    entityFullName: "Comisión Nacional para la Transformación y Desarrollo de la Caficultura",
+    title: "Perfilado Sensorial SCA & Estrategias de Comercialización Taza de la Excelencia",
+    category: "Calidad & Catación",
+    duration: "40 Horas (Práctica en Laboratorio)",
+    modality: "Presencial (Centro Tecnológico Sébaco / Matagalpa)",
+    cost: "100% Gratuito (Subvencionado)",
+    description: "Calibración de atributos organolépticos, detección de defectos físicos y sensoriales, perfiles de tueste y preparación para subastas internacionales de cafés especiales para maximizar precio por libra.",
+    badge: "Oficial CONATRADEC",
+    icon: Award
+  },
+  {
+    id: "prog-cetrex-export",
+    entity: "MIFIC / CETREX / CONATRADEC",
+    entityFullName: "Ventanilla Única de Comercio Exterior & MIFIC",
+    title: "Gestión de Exportación Directa (FOB Puerto Corinto) & Fijación de Precios Reales",
+    category: "Comercio Exterior & Logística",
+    duration: "25 Horas (Asesoría Comercial y Legal)",
+    modality: "Virtual / Sesiones de Acompañamiento",
+    cost: "100% Gratuito",
+    description: "Trámites aduanales CETREX, emisión digital de certificados de origen OIC, negociación de contratos de compraventa internacional y liquidación directa sin intermediarios locales.",
+    badge: "Comercio Exterior",
+    icon: Truck
+  },
+  {
+    id: "prog-mefcca-proc",
+    entity: "MEFCCA / Economía Creativa",
+    entityFullName: "Ministerio de Economía Familiar & Agroindustria",
+    title: "Beneficiado Especial de Alto Valor: Procesos Honey, Anaeróbicos y Naturales",
+    category: "Agroindustria & Procesamiento",
+    duration: "25 Horas (Talleres Prácticos)",
+    modality: "Presencial en Beneficio Húmedo Modelo",
+    cost: "100% Gratuito",
+    description: "Fermentaciones controladas con medición de grados Brix y pH para obtener perfiles exóticos de taza que alcanzan primas de hasta $15-$25/kg en mercados de especialidad.",
+    badge: "Agroindustria",
+    icon: Droplet
   }
-  const h = Math.abs(hash) % 360;
-  return `hsl(${h}, 60%, 25%)`; 
-};
+];
 
-// --- COMPONENTES UI ---
+const INITIAL_TRAINING_REQUESTS = [
+  {
+    id: "tr-001",
+    farmerId: "u-prod-1",
+    farmerName: "María Elena González",
+    farmName: "Finca La Esperanza",
+    programId: "prog-conatradec-1",
+    programTitle: "Perfilado Sensorial SCA & Estrategias de Comercialización Taza de la Excelencia",
+    entity: "CONATRADEC",
+    department: "Jinotega",
+    municipality: "San Rafael del Norte",
+    participantsCount: 2,
+    preferredModality: "Presencial (Centro Tecnológico Sébaco)",
+    requestDate: "2026-08-15",
+    assignedTechnician: "Ing. Carlos Mendoza (CONATRADEC Q-Grader)",
+    status: "Capacitación Aprobada & Programada",
+    scheduledDate: "2026-09-10",
+    notes: "Meta: Calibrar microlotes Honey para fijar precio objetivo de US$12.50/Kg en venta directa."
+  }
+];
 
-const ToastContainer = ({ toasts, removeToast }) => {
-  return (
-    <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
-      {toasts.map((toast) => (
-        <div 
-          key={toast.id} 
-          className={`
-            pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border backdrop-blur-md animate-in slide-in-from-right-10 fade-in duration-300
-            ${toast.type === 'success' ? 'bg-emerald-50/90 border-emerald-200 text-emerald-800 dark:bg-emerald-900/80 dark:border-emerald-700 dark:text-emerald-100' : ''}
-            ${toast.type === 'error' ? 'bg-red-50/90 border-red-200 text-red-800 dark:bg-red-900/80 dark:border-red-700 dark:text-red-100' : ''}
-            ${toast.type === 'info' ? 'bg-blue-50/90 border-blue-200 text-blue-800 dark:bg-blue-900/80 dark:border-blue-700 dark:text-blue-100' : ''}
-            ${toast.type === 'warning' ? 'bg-amber-50/90 border-amber-200 text-amber-800 dark:bg-amber-900/80 dark:border-amber-700 dark:text-amber-100' : ''}
-          `}
-        >
-          {toast.type === 'success' && <CheckCircle size={20} />}
-          {toast.type === 'error' && <XCircle size={20} />}
-          {toast.type === 'info' && <Info size={20} />}
-          {toast.type === 'warning' && <AlertTriangle size={20} />}
-          <div className="flex-1"><p className="text-sm font-medium">{toast.message}</p></div>
-          <button onClick={() => removeToast(toast.id)} className="opacity-60 hover:opacity-100"><X size={16} /></button>
-        </div>
-      ))}
-    </div>
-  );
-};
+const NICA_TERROIRS = [
+  {
+    id: "terroir-ns",
+    name: "Cordillera Dipilto - Jalapa",
+    department: "Nueva Segovia",
+    altitudeRange: "1,350 - 1,750 msnm",
+    cupProfile: "Acidez cítrica vibrante, notas florales de jazmín, miel de abeja y cuerpo sedoso.",
+    varieties: "Maracaturra, Caturra, Java Nica, Geisha",
+    harvestMonths: "Diciembre - Marzo",
+    cupOfExcellenceRecord: "Récord Taza de Excelencia 2026 (US$140/lb / US$14,000/qq)",
+    image: "https://images.unsplash.com/photo-1524350876685-274059332603?auto=format&fit=crop&q=80&w=800"
+  },
+  {
+    id: "terroir-jin",
+    name: "Macizo de Peñas Blancas & Las Brumas",
+    department: "Jinotega",
+    altitudeRange: "1,200 - 1,600 msnm",
+    cupProfile: "Notas a chocolate dulce, caramelo tostado, frutas rojas maduras y acidez málica.",
+    varieties: "Caturra, Bourbon, Pacamara, Catuaí",
+    harvestMonths: "Noviembre - Marzo",
+    cupOfExcellenceRecord: "Mayor volumen de café SHG de alta especialidad en Nicaragua",
+    image: "https://images.unsplash.com/photo-1611854779393-1b2da9d400fe?auto=format&fit=crop&q=80&w=800"
+  },
+  {
+    id: "terroir-mat",
+    name: "Serranías de San Ramón & El Tuma",
+    department: "Matagalpa",
+    altitudeRange: "1,100 - 1,500 msnm",
+    cupProfile: "Cuerpo cremoso, fragancia avellanada, toques de panela y frutos secos.",
+    varieties: "Pacamara, Catuaí, Maragogype",
+    harvestMonths: "Noviembre - Febrero",
+    cupOfExcellenceRecord: "Cuna de beneficiado seco y selección de microlotes de exportación",
+    image: "https://images.unsplash.com/photo-1587734195503-904fca47e0e9?auto=format&fit=crop&q=80&w=800"
+  }
+];
 
-const Card = ({ title, value, icon: Icon, color = "blue", subtitle, isDarkMode }) => {
-  const gradients = {
-    blue: "from-blue-500 to-blue-600",
-    emerald: "from-emerald-500 to-emerald-600",
-    indigo: "from-indigo-500 to-violet-600",
-    red: "from-rose-500 to-red-600"
-  };
-  const bgGradient = gradients[color] || gradients.blue;
-  return (
-    <div className={`relative overflow-hidden p-6 rounded-2xl shadow-sm border transition-all duration-300 hover:shadow-lg hover:scale-[1.02] ${isDarkMode ? 'bg-slate-800/60 border-slate-700' : 'bg-white/80 border-slate-100'} backdrop-blur-sm`}>
-      <div className="flex justify-between items-start z-10 relative">
-        <div>
-          <p className={`text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{title}</p>
-          <h3 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{value}</h3>
-          {subtitle && <p className={`text-xs mt-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{subtitle}</p>}
-        </div>
-        <div className={`p-3 rounded-xl bg-gradient-to-br ${bgGradient} text-white shadow-lg`}>
-          <Icon size={24} />
-        </div>
+const DEMO_USERS = [
+  {
+    id: "u-prod-1",
+    role: "producer",
+    name: "María Elena González",
+    email: "maria@fincaesperanza.ni",
+    phone: "+505 8892-4100",
+    farmName: "Finca La Esperanza",
+    department: "Jinotega",
+    municipality: "San Rafael del Norte",
+    community: "Los Cedros",
+    altitude: 1450,
+    manzanasCultivadas: 14.5,
+    estimatedHarvestQuintales: 260,
+    costOfProductionPerQqUSD: 135.00,
+    targetPricePerKgUSD: 9.80,
+    varieties: "Maracaturra Gigante, Caturra, Java Nica",
+    certifications: "Orgánico Biolatina, SHG Especialidad",
+    organolepticNotes: "Acidez cítrica brillante de naranja dulce, fragancia a flor de café y miel de caña, cuerpo sedoso y prolongado.",
+    netProfitEstimatedUSD: 48500,
+    lat: 13.2125,
+    lng: -86.1108,
+    published: true,
+    avatar: "https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=400&q=80",
+    farmImage: "https://images.unsplash.com/photo-1524350876685-274059332603?auto=format&fit=crop&w=1200"
+  },
+  {
+    id: "u-prod-2",
+    role: "producer",
+    name: "Don José Tomás Pérez",
+    email: "tomas@elsuspiro.ni",
+    phone: "+505 8431-9022",
+    farmName: "Finca El Suspiro",
+    department: "Matagalpa",
+    municipality: "San Ramón",
+    community: "La Reina",
+    altitude: 1250,
+    manzanasCultivadas: 9.0,
+    estimatedHarvestQuintales: 160,
+    costOfProductionPerQqUSD: 128.00,
+    targetPricePerKgUSD: 8.90,
+    varieties: "Pacamara Supremo, Catuaí Rojo",
+    certifications: "Rainforest Alliance, HG Especialidad",
+    organolepticNotes: "Cuerpo cremoso y achocolatado, notas intensas a ciruela pasa, panela y acidez suave balanceada.",
+    netProfitEstimatedUSD: 28400,
+    lat: 12.9256,
+    lng: -85.9189,
+    published: true,
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80",
+    farmImage: "https://images.unsplash.com/photo-1587734195503-904fca47e0e9?auto=format&fit=crop&w=1200"
+  },
+  {
+    id: "u-prod-3",
+    role: "producer",
+    name: "Roberto Castellón",
+    email: "roberto@altosdelpino.ni",
+    phone: "+505 8670-1122",
+    farmName: "Finca Altos del Pino",
+    department: "Nueva Segovia",
+    municipality: "Dipilto",
+    community: "Dipilto Viejo",
+    altitude: 1620,
+    manzanasCultivadas: 22.0,
+    estimatedHarvestQuintales: 410,
+    costOfProductionPerQqUSD: 145.00,
+    targetPricePerKgUSD: 16.50,
+    varieties: "Maracaturra, Java Nica, Geisha Nica",
+    certifications: "Taza de la Excelencia 2026, Cero Deforestación EUDR",
+    organolepticNotes: "Fragancia a jazmín y miel de abeja, notas a durazno blanco, bergamota y acidez cristalina sobresaliente.",
+    netProfitEstimatedUSD: 122000,
+    lat: 13.7250,
+    lng: -86.5050,
+    published: true,
+    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80",
+    farmImage: "https://images.unsplash.com/photo-1611854779393-1b2da9d400fe?auto=format&fit=crop&w=1200"
+  },
+  {
+    id: "u-buyer-1",
+    role: "buyer",
+    name: "Klaus Hoffmann",
+    email: "klaus@hamburgroast.de",
+    phone: "+49 40 1234 5678",
+    companyName: "Nordic & Elbe Specialty Roasters",
+    country: "Alemania",
+    city: "Hamburgo",
+    preferredCurrency: "EUR",
+    annualVolumeBags: 60,
+    targetSCARange: "86 - 89+ SCA",
+    avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80"
+  },
+  {
+    id: "u-buyer-2",
+    role: "buyer",
+    name: "Sarah Jenkins",
+    email: "sarah@pacificoastcoffee.com",
+    phone: "+1 206 555 0199",
+    companyName: "Pacific Coast Coffee Import",
+    country: "EE.UU.",
+    city: "Seattle",
+    preferredCurrency: "USD",
+    annualVolumeBags: 120,
+    targetSCARange: "87 - 91+ SCA",
+    avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80"
+  }
+];
+
+const INITIAL_BATCHES = [
+  {
+    id: "b1",
+    code: "NIC-JIN-26-01",
+    farmerId: "u-prod-1",
+    variety: "Maracaturra Gigante",
+    process: "Honey Amarillo",
+    score: 88.5,
+    weight: 920,
+    priceUSD: 9.80,
+    productionCostPerKgUSD: 2.93,
+    status: "En Beneficio Seco (Sébaco)",
+    harvestDate: "2026-02-15",
+    moisturePercent: 11.2,
+    screenSize: "18-19 Supremo",
+    buyer: "Disponible",
+    isCupOfExcellence: true,
+    batchImage: "https://images.unsplash.com/photo-1587734195503-904fca47e0e9?auto=format&fit=crop&q=80&w=800",
+    tastingNotes: ["Miel de abeja", "Jazmín", "Naranja dulce", "Cacao fino"]
+  },
+  {
+    id: "b2",
+    code: "NIC-MAT-26-02",
+    farmerId: "u-prod-2",
+    variety: "Pacamara Supremo",
+    process: "Natural Lento en Camas",
+    score: 87.25,
+    weight: 690,
+    priceUSD: 8.90,
+    productionCostPerKgUSD: 2.78,
+    status: "En Finca (Secado en Camas)",
+    harvestDate: "2026-03-02",
+    moisturePercent: 11.4,
+    screenSize: "19+ Jumbo",
+    buyer: "Disponible",
+    isCupOfExcellence: false,
+    batchImage: "https://images.unsplash.com/photo-1611854779393-1b2da9d400fe?auto=format&fit=crop&q=80&w=800",
+    tastingNotes: ["Ciruela madura", "Chocolate amargo", "Caramelo", "Panela"]
+  },
+  {
+    id: "b3",
+    code: "NIC-NS-26-COE",
+    farmerId: "u-prod-3",
+    variety: "Java Nica & Geisha",
+    process: "Anaeróbico 72h",
+    score: 90.75,
+    weight: 460,
+    priceUSD: 16.50,
+    productionCostPerKgUSD: 3.15,
+    status: "En Aduana / Puerto Corinto",
+    harvestDate: "2026-01-28",
+    moisturePercent: 10.8,
+    screenSize: "18+ Selección",
+    buyer: "Reserva Especial",
+    isCupOfExcellence: true,
+    batchImage: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&q=80&w=800",
+    tastingNotes: ["Flor de saúco", "Bergamota", "Durazno blanco", "Té negro"]
+  }
+];
+
+const INITIAL_INQUIRIES = [
+  {
+    id: "req-101",
+    batchCode: "NIC-JIN-26-01",
+    batchVariety: "Maracaturra Gigante (Honey)",
+    farmerId: "u-prod-1",
+    farmerName: "María Elena González",
+    buyerId: "u-buyer-1",
+    buyerName: "Klaus Hoffmann",
+    roasteryName: "Nordic & Elbe Specialty Roasters",
+    country: "Alemania",
+    email: "klaus@hamburgroast.de",
+    inquiryType: "sample",
+    kgAmount: 0.5,
+    totalUSD: 35.00,
+    currency: "EUR",
+    date: "2026-08-20",
+    status: "Muestra Aprobada & Despachada (DHL)"
+  },
+  {
+    id: "req-102",
+    batchCode: "NIC-NS-26-COE",
+    batchVariety: "Java Nica & Geisha (Anaeróbico)",
+    farmerId: "u-prod-3",
+    farmerName: "Roberto Castellón",
+    buyerId: "u-buyer-2",
+    buyerName: "Sarah Jenkins",
+    roasteryName: "Pacific Coast Coffee Import",
+    country: "EE.UU.",
+    email: "sarah@pacificoastcoffee.com",
+    inquiryType: "reserve",
+    kgAmount: 460,
+    totalUSD: 7590.00,
+    currency: "USD",
+    date: "2026-08-25",
+    status: "Pre-Contrato FOB Corinto Generado"
+  }
+];
+
+const ToastContainer = ({ toasts, removeToast }) => (
+  <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+    {toasts.map((toast) => (
+      <div 
+        key={toast.id} 
+        className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl border backdrop-blur-md animate-in slide-in-from-right-10 fade-in duration-300 ${
+          toast.type === 'success' 
+            ? 'bg-emerald-950/90 border-emerald-600 text-white shadow-emerald-950/40' 
+            : 'bg-rose-950/90 border-rose-600 text-white shadow-rose-950/40'
+        }`}
+      >
+        {toast.type === 'success' ? <CheckCircle size={18} className="text-emerald-400" /> : <AlertTriangle size={18} className="text-rose-400" />}
+        <p className="text-xs font-bold leading-tight">{toast.message}</p>
+        <button onClick={() => removeToast(toast.id)} className="opacity-60 hover:opacity-100 ml-2">
+          <X size={14} />
+        </button>
       </div>
-      <div className={`absolute -bottom-4 -right-4 w-24 h-24 rounded-full opacity-10 bg-gradient-to-br ${bgGradient}`}></div>
-    </div>
-  );
-};
-
-const Badge = ({ children, type }) => {
-  const styles = {
-    success: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800",
-    warning: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800",
-    danger: "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800",
-    neutral: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
-  };
-  return (
-    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles[type] || styles.neutral}`}>
-      {children}
-    </span>
-  );
-};
-
-// --- LOGIN MODAL ---
-const AdminLoginModal = ({ isOpen, onClose, onLogin, addToast, isDarkMode }) => {
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState(false);
-  if (!isOpen) return null;
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (pin === ADMIN_PIN) { onLogin(); addToast("Modo Administrador activado", "success"); onClose(); setPin(""); setError(false); } 
-    else { setError(true); addToast("PIN incorrecto", "error"); }
-  };
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className={`rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 ${isDarkMode ? 'bg-slate-800' : 'bg-white'}`}>
-        <div className="p-8 text-center">
-          <div className="mx-auto w-16 h-16 bg-blue-100/20 rounded-full flex items-center justify-center mb-4"><Lock size={32} className="text-blue-500" /></div>
-          <h3 className={`text-xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Acceso Administrador</h3>
-          <p className={`text-sm mb-6 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Ingresa el PIN para modificar datos.</p>
-          <form onSubmit={handleSubmit}>
-            <input type="password" className={`w-full text-center text-2xl tracking-widest p-3 border rounded-xl focus:outline-none focus:ring-2 transition-all ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white focus:ring-blue-500' : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-blue-500'} ${error ? 'border-red-500 ring-1 ring-red-500' : ''}`} placeholder="••••" maxLength={4} autoFocus value={pin} onChange={(e) => setPin(e.target.value)} />
-            {error && <p className="text-red-500 text-xs mt-2">PIN incorrecto</p>}
-            <div className="flex gap-3 mt-6"><button type="button" onClick={onClose} className={`flex-1 py-2.5 rounded-lg transition-colors ${isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-100'}`}>Cancelar</button><button type="submit" className="flex-1 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium shadow-lg shadow-blue-900/20">Entrar</button></div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ProfileSetupModal = ({ isOpen, onClose, onSave, isDarkMode }) => {
-  const [name, setName] = useState("");
-  const [device, setDevice] = useState("");
-  const [type, setType] = useState(getDeviceType());
-  useEffect(() => { if (isOpen) { setDevice(`${getDeviceType()} Principal`); } }, [isOpen]);
-  if (!isOpen) return null;
-  const handleSubmit = (e) => { e.preventDefault(); if (name && device) { onSave({ name, device, type }); onClose(); } };
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className={`rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 ${isDarkMode ? 'bg-slate-800' : 'bg-white'}`}>
-        <div className="p-8 text-center">
-          <div className="mx-auto w-20 h-20 bg-emerald-100/20 rounded-full flex items-center justify-center mb-6"><User size={40} className="text-emerald-500" /></div>
-          <h2 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>¡Bienvenido al Sistema!</h2>
-          <p className={`mb-8 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Para que todos sepan quién está conectado, por favor identifícate.</p>
-          <form onSubmit={handleSubmit} className="space-y-4 text-left">
-            <div><label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Tu Nombre</label><input type="text" className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`} placeholder="Ej. Juan Pérez" autoFocus required value={name} onChange={(e) => setName(e.target.value)} /></div>
-            <div><label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Nombre del Dispositivo</label><input type="text" className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'}`} placeholder="Ej. Samsung J9, Laptop Bodega..." required value={device} onChange={(e) => setDevice(e.target.value)} /><p className="text-xs text-slate-400 mt-1">Así aparecerás en la lista de conectados.</p></div>
-            <button type="submit" className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20 mt-4">Comenzar a trabajar</button>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ConnectedUsersModal = ({ isOpen, onClose, users, currentUserId, isDarkMode }) => {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-[50] flex items-start justify-end p-4 pt-20 pointer-events-none">
-      <div className={`rounded-xl shadow-2xl w-72 overflow-hidden pointer-events-auto border animate-in slide-in-from-right-10 fade-in ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-        <div className={`p-3 border-b flex justify-between items-center ${isDarkMode ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-100'}`}><h3 className={`font-bold text-sm flex items-center gap-2 ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}><Users size={16} className="text-blue-500"/> Dispositivos Conectados</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16}/></button></div>
-        <div className="max-h-60 overflow-y-auto p-2 space-y-1">{users.map((u, idx) => { const isMe = u.user === currentUserId; return (<div key={idx} className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${isMe ? (isDarkMode ? 'bg-blue-900/30 border border-blue-800' : 'bg-blue-50 border border-blue-100') : (isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-slate-50')}`}><div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isMe ? 'bg-blue-500 text-white' : (isDarkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-200 text-slate-600')}`}>{u.type === 'Móvil' ? <Smartphone size={14}/> : <Monitor size={14}/>}</div><div className="flex-1 min-w-0"><p className={`text-sm font-bold truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{u.name || 'Usuario'}{isMe && <span className="ml-1 text-xs font-normal text-blue-500">(Tú)</span>}</p><p className="text-xs text-slate-500 truncate">{u.deviceName || 'Dispositivo'}</p></div><div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></div></div>); })}</div>
-      </div>
-    </div>
-  );
-};
-
-// --- MODALES DE ACCION GENERICOS ---
-const ModalWrapper = ({ children, isDarkMode, onClose, title }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className={`rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-slate-800'}`}>
-        <div className={`p-4 border-b flex justify-between items-center ${isDarkMode ? 'border-slate-700 bg-slate-800' : 'border-slate-100 bg-white'}`}>
-          <h3 className="font-bold flex items-center gap-2">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><XCircle size={24} /></button>
-        </div>
-        {children}
-      </div>
+    ))}
   </div>
 );
 
-const MovementModal = ({ isOpen, onClose, item, onSave, isDarkMode, suppliers = [], workers = [] }) => {
-  const [amount, setAmount] = useState(1);
-  const [type, setType] = useState('entry'); 
-  const [destination, setDestination] = useState(""); 
-  const [newCost, setNewCost] = useState(""); 
-  const [worker, setWorker] = useState(""); 
-  
-  useEffect(() => { 
-    if (isOpen) {
-       setAmount(1);
-       if (item) setNewCost(item.costo); 
-       setDestination(""); // Siempre resetear destino al abrir o cambiar tipo
-       setWorker(""); // Resetear trabajador
-       
-       // Eliminado el seteo automático de Centro de Costo
-    } 
-  }, [isOpen, type, item]);
-  
-  if (!isOpen || !item) return null;
-  
-  const handleSubmit = () => { 
-      const finalAmount = parseInt(amount, 10); 
-      if (isNaN(finalAmount) || finalAmount <= 0) return; 
-      onSave(item.codigo, finalAmount, type, item.stock, item.material, destination, newCost, worker); 
-      setAmount(1); 
-      onClose(); 
-  };
-  
-  const inputClass = `w-full p-3 border rounded-xl focus:outline-none focus:ring-2 transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white focus:ring-blue-500' : 'bg-white border-slate-300 text-slate-800 focus:ring-blue-500'}`;
-
-  return (
-    <ModalWrapper isDarkMode={isDarkMode} onClose={onClose} title="Registrar Movimiento">
-        <div className="p-6 space-y-5">
-          <div><p className={`text-sm mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Material:</p><p className="font-bold text-lg">{item.material}</p><p className="text-xs text-slate-400 font-mono">Stock Actual: {item.stock}</p></div>
-          <div className={`flex gap-2 p-1 rounded-xl ${isDarkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
-            <button className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${type === 'entry' ? 'bg-white text-green-600 shadow-md transform scale-[1.02]' : 'text-slate-500 hover:text-slate-700'} ${isDarkMode && type === 'entry' ? '!bg-slate-700 !text-green-400' : ''}`} onClick={() => setType('entry')}><PlusCircle size={16} className="inline mr-2"/> Entrada / Compra</button>
-            <button className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${type === 'exit' ? 'bg-white text-red-600 shadow-md transform scale-[1.02]' : 'text-slate-500 hover:text-slate-700'} ${isDarkMode && type === 'exit' ? '!bg-slate-700 !text-red-400' : ''}`} onClick={() => setType('exit')}><MinusCircle size={16} className="inline mr-2"/> Salida</button>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-             <div><label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Cantidad</label><input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputClass} autoFocus /></div>
-             {type === 'entry' && (
-                 <div><label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Costo Unit.</label><div className="relative"><span className="absolute left-3 top-3 text-slate-400 text-sm">C$</span><input type="number" min="0" step="0.01" value={newCost} onChange={(e) => setNewCost(e.target.value)} className={`${inputClass} pl-8`} /></div></div>
-             )}
-          </div>
-          
-          {/* Selector de Proveedor (Solo visible en Entradas) */}
-          {type === 'entry' && (
-            <div>
-               <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                  Proveedor
-               </label>
-               <input 
-                  list="suppliers-list"
-                  type="text"
-                  className={inputClass}
-                  value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
-                  placeholder="Escriba o seleccione un proveedor..."
-                />
-                <datalist id="suppliers-list">
-                  {suppliers.map(s => <option key={s.id} value={s.nombre} />)}
-                </datalist>
-                {destination && !suppliers.find(s => s.nombre.toLowerCase() === destination.toLowerCase()) && (
-                    <p className="text-xs text-emerald-500 mt-1 flex items-center gap-1 font-medium"><PlusCircle size={12}/> Nuevo proveedor (se guardará al confirmar)</p>
-                )}
-            </div>
-          )}
-
-          {/* Selector de Trabajador (Solo visible en Salidas) - CENTRO DE COSTO ELIMINADO */}
-          {type === 'exit' && (
-            <div className="space-y-4">
-               <div>
-                 <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                    Trabajador / Solicitante
-                 </label>
-                 <input 
-                    list="workers-list"
-                    type="text"
-                    className={inputClass}
-                    value={worker}
-                    onChange={(e) => setWorker(e.target.value)}
-                    placeholder="Escriba el nombre del trabajador..."
-                  />
-                  <datalist id="workers-list">
-                    {workers.map(w => <option key={w.id} value={w.name} />)}
-                  </datalist>
-                  {worker && !workers.find(w => w.name.toLowerCase() === worker.toLowerCase()) && (
-                      <p className="text-xs text-blue-500 mt-1 flex items-center gap-1 font-medium"><PlusCircle size={12}/> Se registrará como nuevo trabajador</p>
-                  )}
-               </div>
-            </div>
-          )}
-
-          {type === 'exit' && (item.stock - amount < 0) && (<div className="p-3 bg-red-500/10 text-red-500 text-sm rounded-lg flex items-start gap-2 border border-red-500/20"><AlertTriangle size={16} className="mt-0.5" /> <span>Advertencia: Stock negativo ({item.stock - amount}).</span></div>)}
-        </div>
-        <div className={`p-4 border-t flex gap-3 ${isDarkMode ? 'border-slate-700 bg-slate-800' : 'border-slate-100 bg-slate-50'}`}><button onClick={onClose} className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors ${isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-200'}`}>Cancelar</button><button onClick={handleSubmit} className={`flex-1 px-4 py-2.5 text-white font-medium rounded-lg shadow-lg transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2 ${type === 'entry' ? 'bg-green-600 hover:bg-green-700 shadow-green-900/20' : 'bg-red-600 hover:bg-red-700 shadow-red-900/20'}`}><Save size={18} /> Confirmar</button></div>
-    </ModalWrapper>
-  );
-};
-
-const ProductFormModal = ({ isOpen, onClose, onSave, categories, units, productToEdit, isDarkMode }) => {
-  const [formData, setFormData] = useState({ codigo: '', material: '', categoria: '', unidad: '', stock: 0, costo: 0, aplicaIVA: true });
-  useEffect(() => {
-    if (isOpen) {
-      const defaultCat = (categories && categories.length > 0) ? categories[0] : 'GENERAL';
-      const defaultUnit = (units && units.length > 0) ? units[0] : 'UNIDADES';
-      if (productToEdit) {
-        setFormData({
-          codigo: productToEdit.codigo || '',
-          material: productToEdit.material || '',
-          categoria: productToEdit.categoria || defaultCat,
-          unidad: productToEdit.unidad || defaultUnit,
-          stock: productToEdit.stock !== undefined ? productToEdit.stock : 0,
-          costo: productToEdit.costo !== undefined ? productToEdit.costo : 0,
-          aplicaIVA: productToEdit.aplicaIVA !== undefined ? productToEdit.aplicaIVA : true
-        });
-      } else {
-        setFormData({ codigo: '', material: '', categoria: defaultCat, unidad: defaultUnit, stock: 0, costo: 0, aplicaIVA: true });
-      }
-    }
-  }, [isOpen, productToEdit, categories, units]);
-
-  if (!isOpen) return null;
-  const handleSubmit = (e) => { e.preventDefault(); if (!formData.codigo || !formData.material) return; onSave(formData, !!productToEdit); onClose(); };
-  const inputClass = `w-full p-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white focus:ring-blue-500' : 'bg-white border-slate-300 text-slate-800 focus:ring-blue-500'}`;
-  const labelClass = `block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`;
-
-  return (
-    <ModalWrapper isDarkMode={isDarkMode} onClose={onClose} title={productToEdit ? 'Editar Producto' : 'Nuevo Producto'}>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className={labelClass}>Código *</label><input required type="text" disabled={!!productToEdit} placeholder="Ej. PE0999" className={`${inputClass} ${productToEdit ? 'opacity-50 cursor-not-allowed' : ''}`} value={formData.codigo} onChange={(e) => setFormData({...formData, codigo: e.target.value})} /></div>
-            <div><label className={labelClass}>Categoría</label><select className={inputClass} value={formData.categoria} onChange={(e) => setFormData({...formData, categoria: e.target.value})}>{categories.map((cat, idx) => <option key={`${cat}-${idx}`} value={cat}>{cat}</option>)}</select></div>
-          </div>
-          <div><label className={labelClass}>Nombre del Material *</label><input required type="text" placeholder="Ej. Perno Hexagonal 3/4" className={inputClass} value={formData.material} onChange={(e) => setFormData({...formData, material: e.target.value})} /></div>
-          <div className="grid grid-cols-3 gap-4">
-            <div><label className={labelClass}>Unidad</label><select className={inputClass} value={formData.unidad} onChange={(e) => setFormData({...formData, unidad: e.target.value})}>{units.map((u, idx) => <option key={`${u}-${idx}`} value={u}>{u}</option>)}</select></div>
-            <div><label className={labelClass}>Stock</label><input type="number" min="0" className={inputClass} value={formData.stock} onChange={(e) => setFormData({...formData, stock: parseInt(e.target.value) || 0})} /></div>
-            <div><label className={labelClass}>Costo Unit.</label><div className="relative"><span className="absolute left-3 top-2.5 text-slate-400">C$</span><input type="number" min="0" step="0.01" className={`${inputClass} pl-9`} value={formData.costo} onChange={(e) => setFormData({...formData, costo: parseFloat(e.target.value) || 0})} /></div></div>
-          </div>
-          <div className="flex items-center gap-2 pt-2"><input type="checkbox" id="ivaCheck" checked={formData.aplicaIVA} onChange={(e) => setFormData({...formData, aplicaIVA: e.target.checked})} className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300" /><label htmlFor="ivaCheck" className={labelClass}>Aplica IVA (15%)</label></div>
-          <div className="pt-4 flex gap-3"><button type="button" onClick={onClose} className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors ${isDarkMode ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-200'}`}>Cancelar</button><button type="submit" className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-medium hover:bg-blue-700 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"><Save size={18} /> {productToEdit ? 'Actualizar' : 'Guardar'}</button></div>
-        </form>
-    </ModalWrapper>
-  );
-};
-
-const ProductHistoryModal = ({ isOpen, onClose, product, history, isDarkMode }) => {
-  if (!isOpen) return null;
-  const productHistory = history.filter(h => h.codigo === product.codigo);
-  return (
-    <ModalWrapper isDarkMode={isDarkMode} onClose={onClose} title="Kardex / Historial">
-        <div className="p-4 border-b flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50"><div className="flex items-center gap-2"><div className={`p-2 rounded-lg ${isDarkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-50 text-purple-600'}`}><FileClock size={20}/></div><div><p className={`font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{product.material}</p><p className="text-xs text-slate-500">{product.codigo}</p></div></div></div>
-        <div className="overflow-y-auto p-0 max-h-[50vh]">
-          {productHistory.length === 0 ? (<div className="text-center py-10 text-slate-400 italic">No hay movimientos registrados.</div>) : (
-            <table className={`w-full text-left text-sm border-collapse ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-              <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}><tr><th className="p-3 border-b border-slate-200 dark:border-slate-700">Fecha</th><th className="p-3 border-b border-slate-200 dark:border-slate-700 text-center">Tipo</th><th className="p-3 border-b border-slate-200 dark:border-slate-700 text-right">Cant.</th><th className="p-3 border-b border-slate-200 dark:border-slate-700 text-right">Saldo</th><th className="p-3 border-b border-slate-200 dark:border-slate-700">Usuario</th></tr></thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                {productHistory.map((log, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                    <td className="p-3 font-mono text-xs opacity-70">{log.fecha.split(',')[0]}</td>
-                    <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${log.tipo === 'Entrada' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : (log.tipo === 'Creación' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400')}`}>{log.tipo}</span></td>
-                    <td className="p-3 text-right font-bold">{log.cantidad}</td>
-                    <td className="p-3 text-right opacity-70">{log.stockNuevo}</td>
-                    <td className="p-3 text-xs truncate max-w-[100px]">{log.usuario || 'Admin'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-    </ModalWrapper>
-  );
-};
-
-// --- COMPONENTE DE PROVEEDORES ---
-const SuppliersView = ({ isAdmin, suppliersData, inventoryData, addToast, isDarkMode, priceHistoryData = {} }) => {
-  const [activeTab, setActiveTab] = useState('list');
-  const [newSupplier, setNewSupplier] = useState({ nombre: '', contacto: '', telefono: '' });
-  const [selectedProduct, setSelectedProduct] = useState('');
-
-  const handleAddSupplier = async (e) => { e.preventDefault(); if(!newSupplier.nombre) return; try { await push(ref(db, SUPPLIERS_PATH), newSupplier); setNewSupplier({ nombre: '', contacto: '', telefono: '' }); addToast("Proveedor agregado con éxito", "success"); } catch (e) { addToast("Error al guardar proveedor", "error"); } };
-  const handleDeleteSupplier = async (id) => { if(window.confirm("¿Borrar proveedor?")) { try { await remove(ref(db, `${SUPPLIERS_PATH}/${id}`)); addToast("Proveedor eliminado", "success"); } catch (e) { addToast("Error al eliminar", "error"); } } };
-  
-  // Datos automáticos para el comparador
-  const comparisonList = useMemo(() => {
-     if (!selectedProduct) return [];
-     const product = inventoryData.find(i => i.material === selectedProduct);
-     if (!product) return [];
-     
-     // Obtener historial de precios para este producto
-     const history = priceHistoryData[product.codigo] || {};
-     return Object.values(history);
-  }, [selectedProduct, inventoryData, priceHistoryData]);
-
-  // Encontrar el mejor precio
-  const bestOption = useMemo(() => {
-     if (comparisonList.length === 0) return null;
-     return comparisonList.reduce((min, curr) => curr.price < min.price ? curr : min, comparisonList[0]);
-  }, [comparisonList]);
-
-  const inputClass = `w-full p-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white focus:ring-blue-500' : 'bg-white border-slate-300 text-slate-800 focus:ring-blue-500'}`;
-
-  return (
-    <div className={`rounded-xl shadow-sm border flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
-      <div className={`p-4 border-b flex gap-4 ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}><button onClick={() => setActiveTab('list')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'list' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : (isDarkMode ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-50')}`}>Directorio</button><button onClick={() => setActiveTab('compare')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'compare' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : (isDarkMode ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-50')}`}>Comparador</button></div>
-      <div className="p-6 overflow-y-auto flex-1">
-        {activeTab === 'list' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {isAdmin && (<div><h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Agregar Nuevo Proveedor</h3><form onSubmit={handleAddSupplier} className={`space-y-4 p-5 rounded-xl border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}><input placeholder="Nombre Empresa" className={inputClass} value={newSupplier.nombre} onChange={e => setNewSupplier({...newSupplier, nombre: e.target.value})} required /><input placeholder="Nombre Contacto" className={inputClass} value={newSupplier.contacto} onChange={e => setNewSupplier({...newSupplier, contacto: e.target.value})} /><input placeholder="Teléfono / Email" className={inputClass} value={newSupplier.telefono} onChange={e => setNewSupplier({...newSupplier, telefono: e.target.value})} /><button type="submit" className="w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 transition-all transform hover:scale-[1.02] font-medium shadow-lg shadow-blue-900/20">Guardar Proveedor</button></form></div>)}
-            <div className={!isAdmin ? "lg:col-span-2" : ""}>
-              <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Lista de Proveedores</h3>
-              <div className="space-y-3">
-                {suppliersData.length === 0 && <p className="text-slate-400 italic text-center p-4 border rounded-lg border-dashed">No hay proveedores registrados aún.</p>}
-                {suppliersData.map(sup => (<div key={sup.id} className={`flex justify-between items-center p-4 border rounded-xl shadow-sm transition-all hover:scale-[1.01] ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}><div><p className={`font-bold ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{sup.nombre}</p><p className="text-xs text-slate-500">{sup.contacto} • {sup.telefono}</p></div>{isAdmin && <button onClick={() => handleDeleteSupplier(sup.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"><Trash2 size={18}/></button>}</div>))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="max-w-3xl mx-auto">
-             <h3 className={`text-lg font-bold mb-4 text-center ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Comparador de Precios Histórico</h3>
-             <div className={`p-6 rounded-xl border mb-6 ${isDarkMode ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-100'}`}>
-                <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-blue-300' : 'text-slate-700'}`}>Selecciona un Material para comparar:</label>
-                <select className={inputClass} value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)}>
-                   <option value="">-- Selecciona Material --</option>
-                   {inventoryData.map(item => <option key={item.codigo} value={item.material}>{item.material} ({item.codigo})</option>)}
-                </select>
-                
-                {selectedProduct && (
-                   <div className="space-y-4 mt-6">
-                      <div className="flex justify-between items-center"><h4 className={`font-semibold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Historial de Compras</h4></div>
-                      
-                      {comparisonList.length === 0 ? (
-                          <div className="p-4 text-center italic text-slate-400">No hay registros de compras con precio para este producto.</div>
-                      ) : (
-                          <div className="space-y-2">
-                             {comparisonList.map((row, idx) => {
-                                const isBest = bestOption && bestOption.price === row.price;
-                                return (
-                                   <div key={idx} className={`flex justify-between items-center p-3 rounded-lg border ${isBest ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700' : (isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200')}`}>
-                                      <div>
-                                         <p className={`font-bold ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{row.supplierName}</p>
-                                         <p className="text-xs text-slate-500">Última compra: {new Date(row.lastUpdated).toLocaleDateString()}</p>
-                                      </div>
-                                      <div className="text-right">
-                                         <p className={`font-mono font-bold text-lg ${isBest ? 'text-emerald-600' : (isDarkMode ? 'text-slate-300' : 'text-slate-600')}`}>C${row.price.toFixed(2)}</p>
-                                         {isBest && <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Mejor Precio</span>}
-                                      </div>
-                                   </div>
-                                )
-                             })}
-                          </div>
-                      )}
-                      
-                      {bestOption && (
-                         <div className={`mt-6 p-4 border rounded-xl text-center flex flex-col items-center justify-center gap-2 ${isDarkMode ? 'bg-emerald-900/30 border-emerald-800' : 'bg-emerald-50 border-emerald-200'}`}>
-                            <div className="p-2 bg-emerald-100 dark:bg-emerald-900 rounded-full text-emerald-600"><TrendingDown size={24}/></div>
-                            <div>
-                               <p className={`font-medium ${isDarkMode ? 'text-emerald-200' : 'text-emerald-800'}`}>Opción más económica</p>
-                               <p className={`font-bold text-xl ${isDarkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>{bestOption.supplierName} a C${bestOption.price.toFixed(2)}</p>
-                            </div>
-                         </div>
-                      )}
-                   </div>
-                )}
-             </div>
-          </div>
+const MetricCard = ({ title, value, subtitle, badgeText, icon: Icon, isDark }) => (
+  <div className={`p-5 rounded-2xl border shadow-sm transition-all duration-300 hover:shadow-md ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-100/60'}`}>
+    <div className="flex items-start justify-between">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wider text-stone-400">{title}</p>
+        <h4 className="text-2xl font-black text-stone-900 dark:text-white font-mono mt-1">{value}</h4>
+        {subtitle && <p className="text-[11px] text-stone-500 mt-1">{subtitle}</p>}
+        {badgeText && (
+          <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+            {badgeText}
+          </span>
         )}
       </div>
+      <div className="p-3 rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-900/20">
+        <Icon size={22} />
+      </div>
     </div>
-  );
-};
+  </div>
+);
 
-// --- SETTINGS VIEW (CONFIGURACIÓN) ---
-const SettingsView = ({ categories, units, workers, onAddCategory, onDeleteCategory, onAddUnit, onDeleteUnit, onAddWorker, onDeleteWorker, isDarkMode }) => {
-  const [newCat, setNewCat] = useState("");
-  const [newUnit, setNewUnit] = useState("");
-  const [newWorker, setNewWorker] = useState("");
+const ModalWrapper = ({ children, isDark, onClose, title, maxWidth = 'max-w-lg' }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className={`rounded-3xl shadow-2xl w-full ${maxWidth} overflow-hidden border my-8 animate-in fade-in zoom-in-95 duration-200 ${isDark ? 'bg-stone-900 border-stone-800 text-white' : 'bg-white border-stone-200 text-stone-800'}`}>
+      <div className={`p-4 px-6 border-b flex justify-between items-center ${isDark ? 'border-stone-800 bg-stone-950' : 'border-stone-100 bg-stone-50/80'}`}>
+        <h3 className="font-extrabold text-sm md:text-base flex items-center gap-2 text-stone-900 dark:text-white">{title}</h3>
+        <button onClick={onClose} className="p-1.5 rounded-xl text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors">
+          <XCircle size={20} />
+        </button>
+      </div>
+      {children}
+    </div>
+  </div>
+);
 
-  const handleAddCat = (e) => { e.preventDefault(); if(newCat) { onAddCategory(newCat); setNewCat(""); } };
-  const handleAddUnit = (e) => { e.preventDefault(); if(newUnit) { onAddUnit(newUnit); setNewUnit(""); } };
-  const handleAddWorker = (e) => { e.preventDefault(); if(newWorker) { onAddWorker(newWorker); setNewWorker(""); } };
+const NYCoffeeExchangeView = ({ isDark, currency }) => {
+  const [timeframe, setTimeframe] = useState('6M');
+  const [activeContractIndex, setActiveContractIndex] = useState(0);
+  const [customDiffCents, setCustomDiffCents] = useState(30); // Diferencial Nicaragua SHG (+30¢/lb)
+  const [simulatedScore, setSimulatedScore] = useState(88.5);
 
-  const inputClass = `flex-1 p-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white focus:ring-blue-500' : 'bg-white border-slate-300 text-slate-800 focus:ring-blue-500'}`;
-  
+  const activeContract = ICE_FUTURES_CONTRACTS[activeContractIndex];
+  const chartData = HISTORICAL_MARKET_TRENDS[timeframe] || HISTORICAL_MARKET_TRENDS['6M'];
+
+  // Conversiones de la Bolsa de NY
+  // 1 lb = 0.45359237 kg -> 1 kg = 2.20462 lbs
+  const nyPricePerLbUSD = activeContract.priceCentsLb / 100;
+  const nyPricePerQuintalUSD = nyPricePerLbUSD * 100; // 100 lbs oro
+  const nyPricePerKgUSD = nyPricePerLbUSD * 2.20462;
+
+  // Precio de café físico con Diferencial Comercial Tradicional
+  const fobCommercialPerLbUSD = (activeContract.priceCentsLb + customDiffCents) / 100;
+  const fobCommercialPerKgUSD = fobCommercialPerLbUSD * 2.20462;
+
+  // Precio Directo NicaTrade Estimado según puntaje SCA
+  const specialtyPricePerKgUSD = simulatedScore >= 90 ? 16.50 : simulatedScore >= 88 ? 9.80 : 8.50;
+  const specialtyPricePerQuintalUSD = specialtyPricePerKgUSD * KG_PER_QUINTAL;
+  const specialtyPricePerLbUSD = specialtyPricePerKgUSD / 2.20462;
+
+  const extraValuePercentage = (((specialtyPricePerKgUSD - nyPricePerKgUSD) / nyPricePerKgUSD) * 100).toFixed(1);
+  const dollarGainPerQuintal = (specialtyPricePerQuintalUSD - nyPricePerQuintalUSD);
+
+  const marketDrivers = [
+    { title: "Inventarios Certificados ICE", value: "820,410 Sacos", trend: "Bajos (-4.2%)", impact: "Presión alcista en cotizaciones mundiales" },
+    { title: "Diferencial de Origen Nicaragua SHG", value: "+28.00 a +35.00 ¢/lb", trend: "Firme", impact: "Reconocimiento de calidad en taza de altura" },
+    { title: "Tipo de Cambio Oficial BCN", value: "36.75 C$ / USD", trend: "Estable", impact: "Liquidación cambiaria sin devaluación abrupta" },
+    { title: "Demanda de Microlotes SCA (87+)", value: "+22% Anual", trend: "En Crecimiento", impact: "Tostadores buscan relación directa con fincas" }
+  ];
+
   return (
-    <div className={`rounded-xl shadow-sm border flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
-      <div className={`p-4 border-b ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}><h3 className={`font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><Settings size={20} className="text-gray-500"/> Configuración del Sistema</h3></div>
-      <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Categorias */}
-        <div className="flex flex-col h-full">
-           <h4 className={`font-bold mb-3 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Categorías de Productos</h4>
-           <form onSubmit={handleAddCat} className="flex gap-2 mb-4"><input className={inputClass} placeholder="Nueva Categoría..." value={newCat} onChange={e => setNewCat(e.target.value.toUpperCase())} /><button type="submit" className="bg-blue-600 text-white p-2.5 rounded-lg hover:bg-blue-700 transition-colors"><Plus size={18}/></button></form>
-           <div className={`flex-1 overflow-y-auto border rounded-xl p-2 space-y-1 max-h-96 ${isDarkMode ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-             {categories.map((cat, idx) => (<div key={`${cat}-${idx}`} className={`flex justify-between items-center p-2 rounded border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-100 text-slate-700'}`}><span className="text-sm font-medium">{cat}</span><button onClick={() => onDeleteCategory(cat)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button></div>))}
-           </div>
+    <div className="space-y-8 animate-in fade-in duration-300 max-w-6xl mx-auto">
+      {/* Banner de Cabecera */}
+      <div className={`p-6 rounded-3xl border shadow-sm relative overflow-hidden ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-gradient-to-br from-emerald-950 via-stone-900 to-teal-950 text-white border-emerald-950'}`}>
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-white flex items-center gap-1">
+                <Activity size={12} className="animate-pulse" /> Cotización en Vivo • ICE Futures U.S. (Nueva York)
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-emerald-200 border border-white/20">
+                Contrato "C" Arábica (KC)
+              </span>
+            </div>
+            <h3 className="text-2xl md:text-3xl font-black text-white">
+              Bolsa de Valores de Nueva York & Monitor de Precios Reales
+            </h3>
+            <p className="text-xs md:text-sm text-emerald-100/80 leading-relaxed">
+              Monitorea el contrato mundial de referencia <strong>ICE Coffee "C"</strong> y comprueba cómo el modelo de <strong>Comercio Directo de NicaTrade</strong> rompe con la trampa del precio genérico de bolsa para defender el valor real de tu café.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-center shrink-0 min-w-[240px]">
+            <p className="text-[10px] uppercase font-bold text-emerald-300 tracking-wider">Contrato Activo NY: {activeContract.contract}</p>
+            <div className="flex items-center justify-center gap-2 my-1">
+              <span className="text-3xl font-black font-mono text-white">{activeContract.priceCentsLb.toFixed(2)}</span>
+              <span className="text-sm font-bold text-emerald-300">¢/lb</span>
+            </div>
+            <div className="inline-flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-500/40">
+              <ArrowUpRight size={14} /> {activeContract.change > 0 ? `+${activeContract.change}` : activeContract.change} ¢/lb ({activeContract.changePct})
+            </div>
+          </div>
         </div>
-        {/* Unidades */}
-        <div className="flex flex-col h-full">
-           <h4 className={`font-bold mb-3 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Unidades de Medida</h4>
-           <form onSubmit={handleAddUnit} className="flex gap-2 mb-4"><input className={inputClass} placeholder="Nueva Unidad..." value={newUnit} onChange={e => setNewUnit(e.target.value.toUpperCase())} /><button type="submit" className="bg-blue-600 text-white p-2.5 rounded-lg hover:bg-blue-700 transition-colors"><Plus size={18}/></button></form>
-           <div className={`flex-1 overflow-y-auto border rounded-xl p-2 space-y-1 max-h-96 ${isDarkMode ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-             {units.map((unit, idx) => (<div key={`${unit}-${idx}`} className={`flex justify-between items-center p-2 rounded border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-100 text-slate-700'}`}><span className="text-sm font-medium">{unit}</span><button onClick={() => onDeleteUnit(unit)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button></div>))}
-           </div>
+      </div>
+
+      {/* Grid de Cotización por Unidades: lb, Quintal, Kg */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className={`p-4 rounded-2xl border shadow-sm ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+          <p className="text-[10px] uppercase font-bold text-stone-400">Precio Bolsa NY por Libra</p>
+          <div className="flex items-baseline gap-2 mt-1">
+            <p className="text-2xl font-black text-stone-900 dark:text-white font-mono">{activeContract.priceCentsLb.toFixed(2)} ¢</p>
+            <span className="text-xs text-stone-500 font-mono">(${nyPricePerLbUSD.toFixed(2)} USD)</span>
+          </div>
+          <p className="text-[11px] text-stone-500 mt-1">Base Contrato "C" (Sin prima)</p>
         </div>
-        {/* Trabajadores (NUEVO) */}
-        <div className="flex flex-col h-full">
-           <h4 className={`font-bold mb-3 ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Trabajadores</h4>
-           <form onSubmit={handleAddWorker} className="flex gap-2 mb-4"><input className={inputClass} placeholder="Nuevo Trabajador..." value={newWorker} onChange={e => setNewWorker(e.target.value)} /><button type="submit" className="bg-blue-600 text-white p-2.5 rounded-lg hover:bg-blue-700 transition-colors"><Plus size={18}/></button></form>
-           <div className={`flex-1 overflow-y-auto border rounded-xl p-2 space-y-1 max-h-96 ${isDarkMode ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-             {workers.map((w, idx) => (<div key={`${w}-${idx}`} className={`flex justify-between items-center p-2 rounded border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-100 text-slate-700'}`}><span className="text-sm font-medium">{w}</span><button onClick={() => onDeleteWorker(w)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={14}/></button></div>))}
-           </div>
+
+        <div className={`p-4 rounded-2xl border shadow-sm ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+          <p className="text-[10px] uppercase font-bold text-stone-400">Precio Bolsa por Quintal Oro (100 lbs)</p>
+          <p className="text-2xl font-black text-stone-900 dark:text-white font-mono mt-1">
+            {formatPrice(nyPricePerQuintalUSD, currency)}
+          </p>
+          <p className="text-[11px] text-stone-500 mt-1">Valor de referencia internacional</p>
         </div>
+
+        <div className={`p-4 rounded-2xl border shadow-sm ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+          <p className="text-[10px] uppercase font-bold text-stone-400">Precio Bolsa por Kilogramo</p>
+          <p className="text-2xl font-black text-stone-900 dark:text-white font-mono mt-1">
+            {formatPrice(nyPricePerKgUSD, currency)} / Kg
+          </p>
+          <p className="text-[11px] text-stone-500 mt-1">Equivalente a 2.204 lbs</p>
+        </div>
+
+        <div className={`p-4 rounded-2xl border shadow-sm ${isDark ? 'bg-emerald-950/20 border-emerald-900/40' : 'bg-emerald-50 border-emerald-200'}`}>
+          <p className="text-[10px] uppercase font-bold text-emerald-800 dark:text-emerald-300">Precio Especialidad Direct Trade</p>
+          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1">
+            {formatPrice(specialtyPricePerKgUSD, currency)} / Kg
+          </p>
+          <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white">
+            +{extraValuePercentage}% sobre Bolsa NY
+          </span>
+        </div>
+      </div>
+
+      {/* Selector de Contratos a Futuro */}
+      <div className={`p-6 rounded-3xl border shadow-sm ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 border-stone-200 dark:border-stone-800">
+          <div>
+            <h4 className="text-base font-black text-stone-900 dark:text-white flex items-center gap-2">
+              <LineChartIcon size={18} className="text-emerald-600" /> Curva de Contratos a Futuro ICE Coffee "C"
+            </h4>
+            <p className="text-xs text-stone-500">Haz clic en un contrato para calibrar los simuladores de precio y rentabilidad.</p>
+          </div>
+          <span className="text-[10px] font-bold uppercase px-3 py-1 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-xl">
+            Horario ICE: 04:15 - 13:30 EST
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+          {ICE_FUTURES_CONTRACTS.map((contract, idx) => (
+            <button
+              key={contract.contract}
+              type="button"
+              onClick={() => setActiveContractIndex(idx)}
+              className={`p-3.5 rounded-2xl border text-left transition-all ${activeContractIndex === idx ? 'bg-emerald-600 text-white border-emerald-600 shadow-md scale-[1.02]' : isDark ? 'bg-stone-800/60 border-stone-700 hover:border-emerald-600 text-stone-200' : 'bg-stone-50 border-stone-200 hover:border-emerald-600 text-stone-800'}`}
+            >
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold">{contract.contract}</span>
+                <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${activeContractIndex === idx ? 'bg-white/20 text-white' : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'}`}>
+                  {contract.status}
+                </span>
+              </div>
+              <p className={`text-xl font-black font-mono mt-1 ${activeContractIndex === idx ? 'text-white' : 'text-stone-900 dark:text-white'}`}>
+                {contract.priceCentsLb.toFixed(2)} <span className="text-xs">¢/lb</span>
+              </p>
+              <div className="flex justify-between text-[11px] mt-1 opacity-90">
+                <span>Rango: {contract.low} - {contract.high}</span>
+                <span className={contract.change >= 0 ? (activeContractIndex === idx ? 'text-emerald-200' : 'text-emerald-600') : 'text-rose-400'}>
+                  {contract.changePct}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Gráfico Histórico Comparativo */}
+      <div className={`p-6 rounded-3xl border shadow-sm ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h4 className="text-base font-black text-stone-900 dark:text-white flex items-center gap-2">
+              <TrendingUp size={18} className="text-emerald-600" /> Bolsa de NY Commodity ($/lb) vs. Precio Real Directo ($/kg)
+            </h4>
+            <p className="text-xs text-stone-500">Comportamiento histórico del mercado de futuros frente a la estabilidad del café de especialidad nicaragüense.</p>
+          </div>
+
+          <div className={`p-1 rounded-xl flex border self-start sm:self-auto ${isDark ? 'bg-stone-950 border-stone-800' : 'bg-stone-100 border-stone-200'}`}>
+            {['1M', '6M', '1Y'].map(tf => (
+              <button
+                key={tf}
+                type="button"
+                onClick={() => setTimeframe(tf)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${timeframe === tf ? 'bg-emerald-600 text-white shadow-sm' : 'text-stone-500 hover:text-stone-900 dark:hover:text-white'}`}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-72 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData}>
+              <defs>
+                <linearGradient id="colorNicaTrade" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#059669" stopOpacity={0.4}/>
+                  <stop offset="95%" stopColor="#059669" stopOpacity={0.0}/>
+                </linearGradient>
+                <linearGradient id="colorNY" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#333' : '#e5e7eb'} />
+              <XAxis dataKey="date" tick={{ fill: isDark ? '#a8a29e' : '#6b7280', fontSize: 12 }} />
+              <YAxis tick={{ fill: isDark ? '#a8a29e' : '#6b7280', fontSize: 12 }} domain={[0, 12]} />
+              <Tooltip 
+                formatter={(value, name) => [
+                  `$${Number(value).toFixed(2)} USD`,
+                  name === 'nicaTradePrice' ? 'NicaTrade Directo ($/Kg)' : 'Bolsa NY Contrato C ($/lb)'
+                ]}
+              />
+              <Legend verticalAlign="top" height={36} />
+              <Area type="monotone" dataKey="nicaTradePrice" name="NicaTrade Directo ($/Kg)" stroke="#059669" strokeWidth={3} fillOpacity={1} fill="url(#colorNicaTrade)" />
+              <Area type="monotone" dataKey="nyCommodityPrice" name="Bolsa NY Contrato C ($/lb)" stroke="#f59e0b" strokeWidth={2} strokeDasharray="4 4" fillOpacity={1} fill="url(#colorNY)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Simulador Interactivo de Diferencial de Calidad vs. Comercio Directo */}
+      <div className={`p-6 rounded-3xl border shadow-sm ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+        <h4 className="text-base font-black text-stone-900 dark:text-white flex items-center gap-2 mb-2">
+          <Calculator size={18} className="text-emerald-600" /> Simulador de Liquidación Real: Bolsa NY + Diferencial vs. NicaTrade
+        </h4>
+        <p className="text-xs text-stone-500 mb-6">
+          Compara lo que recibirías vendiendo como café comercial tradicional (Bolsa NY + Diferencial de exportador) frente a vender tu microlote directo en NicaTrade.
+        </p>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-bold uppercase text-stone-500 block mb-1">Diferencial Tradicional Nicaragua SHG (¢/lb)</label>
+              <input
+                type="number"
+                value={customDiffCents}
+                onChange={e => setCustomDiffCents(Number(e.target.value))}
+                className={`w-full p-2.5 rounded-xl border text-sm font-bold ${isDark ? 'bg-stone-800 border-stone-700 text-white' : 'bg-stone-50 border-stone-200 text-stone-900'}`}
+              />
+              <span className="text-[10px] text-stone-400 block mt-1">Diferencial habitual en Puerto Corinto (+25¢ a +35¢)</span>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold uppercase text-stone-500 block mb-1">Calidad SCA de tu Microlote</label>
+              <select
+                value={simulatedScore}
+                onChange={e => setSimulatedScore(Number(e.target.value))}
+                className={`w-full p-2.5 rounded-xl border text-sm font-bold ${isDark ? 'bg-stone-800 border-stone-700 text-white' : 'bg-stone-50 border-stone-200 text-stone-900'}`}
+              >
+                <option value={86.5}>86.0 - 87.5 SCA (Especialidad Estándar ~ $8.50/Kg)</option>
+                <option value={88.5}>88.0 - 89.5 SCA (Microlote Honey/Natural ~ $9.80/Kg)</option>
+                <option value={90.5}>90.0+ SCA (Lote Presidencial / Taza de Excelencia ~ $16.50/Kg)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className={`p-5 rounded-2xl border text-center flex flex-col justify-between ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
+            <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Venta Tradicional por Intermediario</span>
+            <div className="my-3">
+              <p className="text-xs text-stone-400 font-mono">Bolsa NY ({activeContract.priceCentsLb}¢) + Diff ({customDiffCents}¢)</p>
+              <p className="text-2xl font-black font-mono text-stone-900 dark:text-white mt-1">
+                {formatPrice(fobCommercialPerKgUSD, currency)} <span className="text-xs">/ Kg</span>
+              </p>
+              <p className="text-xs text-stone-500 mt-1">({formatPrice(fobCommercialPerLbUSD * 100, currency)} por quintal)</p>
+            </div>
+            <p className="text-[11px] text-rose-500 font-bold">Intermediario retiene el 30%-40% del valor final</p>
+          </div>
+
+          <div className={`p-5 rounded-2xl border text-center flex flex-col justify-between ${isDark ? 'bg-emerald-950/30 border-emerald-800/60' : 'bg-emerald-50 border-emerald-200'}`}>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">Venta Directa NicaTrade</span>
+            <div className="my-3">
+              <p className="text-xs text-emerald-600 font-mono">Calidad {simulatedScore} SCA Direct Trade</p>
+              <p className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1">
+                {formatPrice(specialtyPricePerKgUSD, currency)} <span className="text-xs">/ Kg</span>
+              </p>
+              <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">({formatPrice(specialtyPricePerQuintalUSD, currency)} por quintal)</p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-emerald-600 text-white text-xs font-black self-center">
+              +{formatPrice(dollarGainPerQuintal, currency)} Ganancia Extra / qq
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Factores Clave del Mercado Global */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {marketDrivers.map((driver, idx) => (
+          <div key={idx} className={`p-4 rounded-2xl border ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+              {driver.trend}
+            </span>
+            <h5 className="font-extrabold text-sm text-stone-900 dark:text-white mt-2">{driver.title}</h5>
+            <p className="text-lg font-black font-mono text-emerald-600 mt-0.5">{driver.value}</p>
+            <p className="text-xs text-stone-500 mt-1">{driver.impact}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
 };
 
-const QuotationsView = ({ inventoryData, items, setItems, addToast, isAdmin, isDarkMode, logoUrl }) => {
-  const [searchItem, setSearchItem] = useState('');
+const StateTrainingView = ({ currentUser, trainingRequests, onRequestTraining, isDark }) => {
+  const [selectedProgram, setSelectedProgram] = useState(null);
+  const [filterCategory, setFilterCategory] = useState('Todas');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  const [requestForm, setRequestForm] = useState({
+    participantsCount: 2,
+    preferredModality: 'Presencial',
+    specificGoal: 'Calibrar la cata SCA de nuestros microlotes para defender precios de especialidad por encima de los US$10/Kg.'
+  });
 
-  const handleAddItem = (item) => {
-    if (items.find(i => i.codigo === item.codigo)) { addToast("Ya está en la lista", "info"); return; }
-    setItems([...items, { ...item, cantidad: 1 }]);
-    addToast("Agregado a cotización", "success");
-  };
+  const categories = ['Todas', 'Calidad & Catación', 'Comercio Exterior & Logística', 'Agroindustria & Procesamiento'];
 
-  const handleRemoveItem = (codigo) => { setItems(items.filter(i => i.codigo !== codigo)); };
-  const handleUpdateQty = (codigo, qty) => { setItems(items.map(i => i.codigo === codigo ? { ...i, cantidad: parseInt(qty) || 0 } : i)); };
+  const filteredPrograms = STATE_TRAINING_PROGRAMS.filter(prog => {
+    return filterCategory === 'Todas' || prog.category === filterCategory;
+  });
 
-  const handlePrint = () => {
-    const printWindow = window.open('', '', 'width=800,height=600');
-    const html = `
-      <html>
-      <head>
-        <title>Solicitud de Cotización</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
-          .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; border-bottom: 2px solid #047857; padding-bottom: 20px; }
-          .logo { max-height: 80px; }
-          h1 { color: #047857; margin: 0; font-size: 24px; }
-          .meta { margin-bottom: 30px; line-height: 1.6; }
-          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-          th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-          th { background-color: #f3f4f6; text-align: center; }
-          .empty-col { width: 150px; }
-          .footer { margin-top: 60px; text-align: center; font-size: 12px; color: #666; }
-          @media print { button { display: none; } }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div>
-            <h1>Solicitud de Cotización</h1>
-            <p><strong>Fecha:</strong> ${new Date().toLocaleDateString()}</p>
-          </div>
-          <img src="${logoUrl}" class="logo" alt="Logo" />
-        </div>
-        
-        <div class="meta">
-          <p><strong>Estimados proveedores,</strong></p>
-          <p>Por medio de la presente solicitamos amablemente nos coticen los siguientes materiales, indicando precios unitarios, tiempo de entrega y condiciones de pago.</p>
-        </div>
+  const userRequests = trainingRequests.filter(req => req.farmerId === currentUser.id);
 
-        <table>
-          <thead>
-            <tr>
-              <th width="15%">Código</th>
-              <th width="40%">Descripción / Material</th>
-              <th width="10%">Cantidad</th>
-              <th class="empty-col">Precio Unitario</th>
-              <th class="empty-col">Tiempo Entrega</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${items.map(item => `
-              <tr>
-                <td style="text-align: center">${item.codigo}</td>
-                <td>${item.material}</td>
-                <td style="text-align: center"><strong>${item.cantidad}</strong> ${item.unidad}</td>
-                <td></td>
-                <td></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        
-        <div class="footer">
-           <p>Favor enviar cotización formal a la brevedad posible.</p>
-           <p><strong>CONTROL ISC MATAGALPA</strong></p>
-        </div>
-        
-        <script>window.print();</script>
-      </body>
-      </html>
-    `;
-    printWindow.document.write(html);
-    printWindow.document.close();
-  };
-
-  const filteredInventory = inventoryData.filter(i => i.material.toLowerCase().includes(searchItem.toLowerCase()) || i.codigo.toLowerCase().includes(searchItem.toLowerCase()));
-
-  return (
-    <div className={`rounded-xl shadow-sm border flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
-       <div className={`p-4 border-b flex justify-between items-center ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}>
-          <div className="flex gap-4 items-center"><h3 className={`font-bold text-lg flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><FileText className="text-blue-500"/> Solicitud de Cotización</h3><span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">{items.length} Items</span></div>
-          <div className="flex gap-2"><button onClick={handlePrint} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isDarkMode ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-800 text-white hover:bg-slate-700'}`}><Printer size={16}/> Imprimir Solicitud</button></div>
-       </div>
-       <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
-          <div className={`w-full lg:w-1/3 border-r flex flex-col ${isDarkMode ? 'border-slate-700 bg-slate-800/30' : 'border-slate-100 bg-slate-50/50'}`}>
-             <div className={`p-4 border-b ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}><div className="relative"><Search className="absolute left-3 top-2.5 text-slate-400" size={16}/><input type="text" placeholder="Buscar para cotizar..." className={`w-full pl-9 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300'}`} value={searchItem} onChange={(e) => setSearchItem(e.target.value)}/></div></div>
-             <div className="flex-1 overflow-y-auto p-2">{filteredInventory.map(item => (<div key={item.codigo} className={`flex justify-between items-center p-3 hover:shadow-sm rounded-lg border border-transparent transition-all cursor-pointer group ${isDarkMode ? 'hover:bg-slate-800 hover:border-slate-700' : 'hover:bg-white hover:border-slate-200'}`} onClick={() => handleAddItem(item)}><div className="min-w-0"><p className={`font-medium text-sm truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>{item.material}</p><p className="text-xs text-slate-500">{item.codigo}</p></div><button className="text-blue-500 opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-blue-500/10"><Plus size={16}/></button></div>))}</div>
-          </div>
-          <div className="flex-1 flex flex-col">
-             <div className="flex-1 overflow-y-auto">
-                {items.length === 0 ? (
-                  <div className={`h-full flex flex-col items-center justify-center ${isDarkMode ? 'text-slate-600' : 'text-slate-400'}`}><FileText size={48} className="mb-4 opacity-50"/><p>Selecciona productos a la izquierda para crear una solicitud.</p></div>
-                ) : (
-                  <table className={`w-full text-left text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                      <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
-                        <tr><th className="p-3">Código</th><th className="p-3">Material</th><th className="p-3 text-center">Cantidad Solicitada</th><th className="p-3 text-center">Acción</th></tr>
-                      </thead>
-                      <tbody className={`divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
-                        {items.map(item => (
-                           <tr key={item.codigo} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
-                              <td className="p-3 font-mono text-xs opacity-70">{item.codigo}</td>
-                              <td className={`p-3 font-medium ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>{item.material}</td>
-                              <td className="p-3 text-center">
-                                <input 
-                                  type="number" 
-                                  min="1" 
-                                  className={`w-20 text-center p-1 border rounded ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300'}`}
-                                  value={item.cantidad}
-                                  onChange={(e) => handleUpdateQty(item.codigo, e.target.value)}
-                                />
-                              </td>
-                              <td className="p-3 text-center"><button onClick={() => handleRemoveItem(item.codigo)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-500/10"><Trash2 size={16}/></button></td>
-                           </tr>
-                        ))}
-                      </tbody>
-                  </table>
-                )}
-             </div>
-          </div>
-       </div>
-    </div>
-  );
-};
-
-const RequisitionsView = ({ inventoryData, addToast, isAdmin, isDarkMode }) => {
-  const [requisitions, setRequisitions] = useState([]);
-  const [searchItem, setSearchItem] = useState('');
-
-  useEffect(() => {
-    const reqRef = ref(db, REQUISITIONS_PATH);
-    const unsubscribe = onValue(reqRef, (snapshot) => {
-      const data = snapshot.val();
-      setRequisitions(data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : []);
+  const handleOpenRequest = (prog) => {
+    setSelectedProgram(prog);
+    setRequestForm({
+      participantsCount: 2,
+      preferredModality: 'Presencial en Centro Tecnológico',
+      specificGoal: `Capacitarnos con ${prog.entity} para certificar la calidad de ${currentUser.farmName || 'la finca'} y negociar precios reales directamente con compradores internacionales.`
     });
-    return () => unsubscribe();
-  }, []);
-
-  const handleAddToRequisition = (item) => {
-    const existing = requisitions.find(r => r.codigo === item.codigo);
-    if (existing) { addToast("El producto ya está en la lista", "info"); return; }
-    // No guardamos cantidad
-    const newItem = { codigo: item.codigo, material: item.material, costo: item.costo || 0, aplicaIVA: item.aplicaIVA || false }; 
-    push(ref(db, REQUISITIONS_PATH), newItem).then(() => addToast("Agregado", "success")).catch(() => addToast("Error", "error"));
+    setIsModalOpen(true);
   };
 
-  const handleRemoveRequisition = (id) => { remove(ref(db, `${REQUISITIONS_PATH}/${id}`)); };
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    if (!selectedProgram) return;
 
-  const handleAutoFill = () => {
-    const lowStockItems = inventoryData.filter(i => i.stock <= 5);
-    if (lowStockItems.length === 0) { addToast("No hay stock bajo", "info"); return; }
-    let count = 0;
-    lowStockItems.forEach(item => {
-      const existing = requisitions.find(r => r.codigo === item.codigo);
-      if (!existing) {
-        push(ref(db, REQUISITIONS_PATH), { codigo: item.codigo, material: item.material, costo: item.costo || 0, aplicaIVA: item.aplicaIVA || false });
-        count++;
-      }
-    });
-    addToast(`Agregados ${count} items`, "success");
-  };
-
-  const handlePrint = () => {
-    const printWindow = window.open('', '', 'width=800,height=600');
-    // Calculo total (aunque sin cantidades es solo una lista de precios)
-    const html = `
-      <html>
-      <head>
-        <title>Orden de Compra - Control ISC</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 20px; }
-          h1 { color: #047857; text-align: center; }
-          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-          th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-          th { background-color: #f3f4f6; }
-          .footer { margin-top: 40px; font-weight: bold; text-align: right; }
-          @media print { button { display: none; } }
-        </style>
-      </head>
-      <body>
-        <h1>Listado de Requisición de Materiales</h1>
-        <p><strong>Fecha:</strong> ${new Date().toLocaleDateString()}</p>
-        <table>
-          <thead>
-            <tr>
-              <th>Código</th>
-              <th>Material</th>
-              <th>Stock Actual</th> 
-              <th style="text-align: right">Costo Unit.</th>
-              <th style="text-align: right">Costo Unit. (+IVA)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${requisitions.map(item => {
-              // Buscar stock actual
-              const currentStock = inventoryData.find(i => i.codigo === item.codigo)?.stock || 0;
-              return `
-              <tr>
-                <td>${item.codigo}</td>
-                <td>${item.material}</td>
-                <td style="text-align: center">${currentStock}</td>
-                <td style="text-align: right">C$${item.costo.toFixed(2)}</td>
-                <td style="text-align: right">C$${(item.costo * (item.aplicaIVA ? 1.15 : 1)).toFixed(2)}</td>
-              </tr>
-            `}).join('')}
-          </tbody>
-        </table>
-        <div class="footer"><p>Firma Autorizada: __________________________</p></div>
-        <script>window.print();</script>
-      </body>
-      </html>
-    `;
-    printWindow.document.write(html);
-    printWindow.document.close();
-  };
-
-  const filteredInventory = inventoryData.filter(i => i.material.toLowerCase().includes(searchItem.toLowerCase()) || i.codigo.toLowerCase().includes(searchItem.toLowerCase()));
-
-  return (
-    <div className={`rounded-xl shadow-sm border flex flex-col h-full overflow-hidden ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
-       <div className={`p-4 border-b flex justify-between items-center ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}>
-          <div className="flex gap-4 items-center"><h3 className={`font-bold text-lg flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><ShoppingCart className="text-emerald-600"/> Requisiciones</h3><span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full">{requisitions.length} Items</span></div>
-          <div className="flex gap-2">{isAdmin && <button onClick={handleAutoFill} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 text-sm font-medium"><FilePlus size={16}/> Cargar Stock Bajo</button>}<button onClick={handlePrint} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isDarkMode ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-800 text-white hover:bg-slate-700'}`}><Printer size={16}/> Imprimir Lista</button></div>
-       </div>
-       <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
-          <div className={`w-full lg:w-1/3 border-r flex flex-col ${isDarkMode ? 'border-slate-700 bg-slate-800/30' : 'border-slate-100 bg-slate-50/50'}`}>
-             <div className={`p-4 border-b ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}><div className="relative"><Search className="absolute left-3 top-2.5 text-slate-400" size={16}/><input type="text" placeholder="Buscar producto..." className={`w-full pl-9 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300'}`} value={searchItem} onChange={(e) => setSearchItem(e.target.value)}/></div></div>
-             <div className="flex-1 overflow-y-auto p-2">{filteredInventory.map(item => (<div key={item.codigo} className={`flex justify-between items-center p-3 hover:shadow-sm rounded-lg border border-transparent transition-all cursor-pointer group ${isDarkMode ? 'hover:bg-slate-800 hover:border-slate-700' : 'hover:bg-white hover:border-slate-200'}`} onClick={() => isAdmin && handleAddToRequisition(item)}><div className="min-w-0"><p className={`font-medium text-sm truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>{item.material}</p><p className="text-xs text-slate-500">Stock: <span className={item.stock <= 5 ? "text-red-500 font-bold" : ""}>{item.stock}</span></p></div>{isAdmin && <button className="text-emerald-500 opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-emerald-500/10"><Plus size={16}/></button>}</div>))}</div>
-          </div>
-          <div className="flex-1 flex flex-col">
-             <div className="flex-1 overflow-y-auto">
-                <table className={`w-full text-left text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                   <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
-                      <tr><th className="p-3">Código</th><th className="p-3">Material</th><th className="p-3 text-center">Stock Actual</th><th className="p-3 text-right">Costo Unit.</th><th className="p-3 text-right">Costo + IVA</th><th className="p-3 text-center">Acción</th></tr>
-                   </thead>
-                   <tbody className={`divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
-                      {requisitions.map(req => {
-                         const stockActual = inventoryData.find(i => i.codigo === req.codigo)?.stock || 0;
-                         return (
-                         <tr key={req.id} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
-                            <td className="p-3 font-mono text-xs opacity-70">{req.codigo}</td>
-                            <td className={`p-3 font-medium ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>{req.material}</td>
-                            <td className="p-3 text-center font-bold opacity-80">{stockActual}</td>
-                            <td className="p-3 text-right opacity-70">C${(req.costo).toFixed(2)}</td>
-                            <td className="p-3 text-right font-bold text-emerald-600">C${(req.costo * (req.aplicaIVA ? 1.15 : 1)).toFixed(2)}{req.aplicaIVA && <span className="text-[10px] ml-1 text-slate-400">(15%)</span>}</td>
-                            <td className="p-3 text-center">{isAdmin && <button onClick={() => handleRemoveRequisition(req.id)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-500/10"><Trash2 size={16}/></button>}</td>
-                         </tr>
-                      )})}
-                      {requisitions.length === 0 && (<tr><td colSpan="6" className="p-10 text-center italic text-slate-400 border border-dashed rounded m-4 bg-gray-50/50">La lista de requisición está vacía. Añade items desde el menú izquierdo.</td></tr>)}
-                   </tbody>
-                </table>
-             </div>
-          </div>
-       </div>
-    </div>
-  );
-};
-
-export default function InventoryDashboard() {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState('Todas');
-  const [statusFilter, setStatusFilter] = useState('all'); 
-  const [logoUrl, setLogoUrl] = useState("https://cdn-icons-png.flaticon.com/512/2897/2897785.png");
-  const [onlineUsersList, setOnlineUsersList] = useState([]); 
-  const [toasts, setToasts] = useState([]); 
-
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [inventoryData, setInventoryData] = useState([]);
-  const [historyData, setHistoryData] = useState([]);
-  const [suppliersData, setSuppliersData] = useState([]);
-  const [priceHistoryData, setPriceHistoryData] = useState({}); 
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState(null);
-  const [myDeviceName, setMyDeviceName] = useState("");
-  const [userProfile, setUserProfile] = useState(null); 
-  
-  // ESTADO ELEVADO PARA COTIZACIONES (PERSISTENCIA ENTRE PESTAÑAS)
-  const [quotationItems, setQuotationItems] = useState([]);
-
-  // ESTADOS DE CONFIGURACIÓN DINÁMICA
-  const [categoriesList, setCategoriesList] = useState([]);
-  const [unitsList, setUnitsList] = useState([]);
-  const [workersList, setWorkersList] = useState([]); 
-
-  // --- NUEVOS ESTADOS PARA HISTORIAL ---
-  const [historySearchTerm, setHistorySearchTerm] = useState('');
-  const [historyFilterType, setHistoryFilterType] = useState('all'); // 'all', 'entry', 'exit'
-  
-  // TEMA OSCURO
-  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('isc_theme') === 'dark');
-
-  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
-  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [isConnectedUsersModalOpen, setIsConnectedUsersModalOpen] = useState(false); 
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); 
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false); 
-  
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [editingItem, setEditingItem] = useState(null);
-  const [historyItem, setHistoryItem] = useState(null); 
-  const fileInputRef = useRef(null);
-  const isFirstLoad = useRef(true); // Ref para evitar re-seeding automático
-
-  // --- HELPER TOASTS ---
-  const addToast = (message, type = 'info') => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 3000); 
-  };
-  const removeToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
-  
-  // --- TOGGLE THEME ---
-  const toggleTheme = () => {
-    const newTheme = !isDarkMode;
-    setIsDarkMode(newTheme);
-    localStorage.setItem('isc_theme', newTheme ? 'dark' : 'light');
-  };
-
-  // --- 1. AUTENTICACIÓN Y PERFIL ---
-  useEffect(() => {
-    const savedProfile = localStorage.getItem('isc_user_profile');
-    if (savedProfile) {
-      setUserProfile(JSON.parse(savedProfile));
-    } else {
-      setIsProfileModalOpen(true); 
-    }
-
-    const initAuth = async () => {
-      try { await signInAnonymously(auth); } catch (error) { if (error.code === 'auth/configuration-not-found' || error.message.includes('configuration-not-found')) setAuthError('AUTH_CONFIG_MISSING'); }
+    const newRequest = {
+      id: `tr-${Date.now()}`,
+      farmerId: currentUser.id,
+      farmerName: currentUser.name,
+      farmName: currentUser.farmName || 'Mi Finca',
+      programId: selectedProgram.id,
+      programTitle: selectedProgram.title,
+      entity: selectedProgram.entity,
+      department: currentUser.department || 'Jinotega',
+      municipality: currentUser.municipality || 'San Rafael del Norte',
+      participantsCount: Number(requestForm.participantsCount) || 1,
+      preferredModality: requestForm.preferredModality,
+      requestDate: new Date().toISOString().split('T')[0],
+      assignedTechnician: `Especialista de Calidad ${selectedProgram.entity}`,
+      status: "Solicitud Recibida / En Revisión Técnica",
+      scheduledDate: "Pendiente de Confirmación de Fecha",
+      notes: requestForm.specificGoal
     };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => { setUser(currentUser); if (currentUser) setAuthError(null); if (!currentUser && !authError) setLoading(false); });
-    return () => unsubscribe();
-  }, [authError]);
 
-  const handleSaveProfile = (profile) => {
-    localStorage.setItem('isc_user_profile', JSON.stringify(profile));
-    setUserProfile(profile);
+    onRequestTraining(newRequest);
+    setIsModalOpen(false);
   };
 
-  // --- 2. DATA SYNC Y PRESENCIA ---
-  useEffect(() => {
-    if (!user || !userProfile) return; 
-    
-    // a) Inventario - LÓGICA MEJORADA PARA EVITAR ZOMBIES Y BORRADO CORRECTO
-    const inventoryRef = ref(db, DB_PATH);
-    const unsubscribeInv = onValue(inventoryRef, (snapshot) => {
-      const data = snapshot.val();
-      
-      // Solo inicializar datos si es la PRIMERA carga Y la base de datos está vacía
-      if (!data && isFirstLoad.current) { 
-         const updates = {}; 
-         INITIAL_DATA.forEach(item => { updates[item.codigo] = item; }); 
-         update(inventoryRef, updates); 
-      } 
-      else { 
-         // Mapear incluyendo la 'firebaseKey' real para borrado seguro
-         const list = data ? Object.entries(data).map(([key, value]) => ({
-             ...value,
-             firebaseKey: key 
-         })) : [];
-         
-         setInventoryData(list); 
-         setLoading(false); 
-      }
-      isFirstLoad.current = false; // Marcar que ya cargó una vez
-    });
-    
-    // b) Historial
-    const historyRef = ref(db, HISTORY_PATH);
-    const unsubscribeHist = onValue(historyRef, (snapshot) => { const data = snapshot.val(); setHistoryData(data ? Object.values(data).sort((a, b) => b.timestamp - a.timestamp) : []); });
-    
-    // c) Proveedores
-    const suppliersRef = ref(db, SUPPLIERS_PATH);
-    const unsubscribeSup = onValue(suppliersRef, (snapshot) => { const data = snapshot.val(); setSuppliersData(data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : []); });
-    
-    // d) Logo
-    const logoRef = ref(db, `${SETTINGS_PATH}/logo`);
-    const unsubscribeLogo = onValue(logoRef, (snapshot) => { if (snapshot.exists()) setLogoUrl(snapshot.val()); });
-
-    // e) HISTORIAL DE PRECIOS
-    const priceRef = ref(db, PRICE_HISTORY_PATH);
-    const unsubscribePrice = onValue(priceRef, (snapshot) => {
-       const data = snapshot.val();
-       setPriceHistoryData(data || {});
-    });
-
-    // f) CONFIGURACIÓN (Categorías y Unidades)
-    const catRef = ref(db, CATEGORIES_PATH);
-    const unsubscribeCat = onValue(catRef, (snapshot) => {
-      const data = snapshot.val();
-      if (!data) { set(ref(db, CATEGORIES_PATH), DEFAULT_CATEGORIES_LIST); } 
-      else { 
-        const list = Object.entries(data).map(([k, v]) => ({ id: k, name: (typeof v === 'object' && v.name) ? v.name : v }));
-        setCategoriesList(list); 
-      }
-    });
-
-    const unitsRef = ref(db, UNITS_PATH);
-    const unsubscribeUnits = onValue(unitsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (!data) { set(ref(db, UNITS_PATH), DEFAULT_UNITS_LIST); }
-      else { 
-        const list = Object.entries(data).map(([k, v]) => ({ id: k, name: (typeof v === 'object' && v.name) ? v.name : v }));
-        setUnitsList(list); 
-      }
-    });
-
-    // g) TRABAJADORES
-    const workersRef = ref(db, WORKERS_PATH);
-    const unsubscribeWorkers = onValue(workersRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const list = Object.entries(data).map(([k, v]) => ({ id: k, name: (typeof v === 'object' && v.name) ? v.name : v }));
-        setWorkersList(list);
-      } else {
-        setWorkersList([]);
-      }
-    });
-
-    // h) PRESENCIA
-    const connectedRef = ref(db, ".info/connected");
-    const presenceRef = ref(db, PRESENCE_PATH);
-    
-    const unsubscribeConnected = onValue(connectedRef, (snap) => {
-      if (snap.val() === true) {
-        const myPresenceRef = push(presenceRef);
-        import('firebase/database').then(({ onDisconnect }) => {
-           onDisconnect(myPresenceRef).remove();
-           set(myPresenceRef, { 
-             user: user.uid, 
-             name: userProfile.name, 
-             deviceName: userProfile.device, 
-             type: userProfile.type, 
-             connectedAt: Date.now() 
-           });
-        });
-      }
-    });
-    const unsubscribePresenceCount = onValue(presenceRef, (snap) => { if (snap.exists()) setOnlineUsersList(Object.values(snap.val())); else setOnlineUsersList([]); });
-
-    return () => { 
-      unsubscribeInv(); unsubscribeHist(); unsubscribeSup(); unsubscribeLogo(); unsubscribePrice();
-      unsubscribeCat(); unsubscribeUnits(); unsubscribeWorkers();
-      unsubscribeConnected(); unsubscribePresenceCount(); 
-    };
-  }, [user, userProfile]);
-
-  const handleChangeDeviceName = () => { setIsProfileModalOpen(true); };
-
-  const exportToCSV = (data, filename) => {
-    if (!data || data.length === 0) { addToast("No hay datos", "warning"); return; }
-    const headers = Object.keys(data[0]);
-    const csvContent = [ headers.join(','), ...data.map(row => headers.map(header => `"${(row[header] || '').toString().replace(/"/g, '""')}"`).join(',')) ].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`; link.click();
-    addToast("Exportación iniciada", "success");
-  };
-
-  const handleLogoClick = () => { if(isAdmin) fileInputRef.current?.click(); };
-  const handleLogoChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      if (file.size > 500 * 1024) return addToast("Máx 500KB", "error");
-      const reader = new FileReader();
-      reader.onloadend = () => { set(ref(db, `${SETTINGS_PATH}/logo`), reader.result).then(() => addToast("Logo actualizado", "success")); };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // --- HANDLERS PARA CONFIGURACIÓN DINÁMICA ---
-  const handleAddCategory = (cat) => push(ref(db, CATEGORIES_PATH), { name: cat });
-  const handleDeleteCategory = (catName) => {
-    const item = categoriesList.find(c => c.name === catName);
-    if (item && item.id) remove(ref(db, `${CATEGORIES_PATH}/${item.id}`));
-  };
-  const handleAddUnit = (unit) => push(ref(db, UNITS_PATH), { name: unit });
-  const handleDeleteUnit = (unitName) => {
-    const item = unitsList.find(u => u.name === unitName);
-    if (item && item.id) remove(ref(db, `${UNITS_PATH}/${item.id}`));
-  };
-  const handleAddWorker = (name) => push(ref(db, WORKERS_PATH), { name });
-  const handleDeleteWorker = (name) => {
-    const item = workersList.find(w => w.name === name);
-    if (item && item.id) remove(ref(db, `${WORKERS_PATH}/${item.id}`));
-  };
-
-  const handleUpdateStock = async (codigo, cantidad, tipo, stockActual, nombreMaterial, destino, newCost, workerName) => {
-    if (!user || !isAdmin) return;
-    const adjustment = tipo === 'entry' ? cantidad : -cantidad;
-    
-    const productUpdates = { stock: stockActual + adjustment };
-    
-    if (tipo === 'entry') {
-        if (newCost && parseFloat(newCost) >= 0) productUpdates.costo = parseFloat(newCost);
-
-        if (destino && newCost) {
-            const supplierName = destino.trim();
-            const exists = suppliersData.some(s => s.nombre.toLowerCase() === supplierName.toLowerCase());
-            const isGeneric = ['proveedor general', 'compra directa', 'otro'].includes(supplierName.toLowerCase());
-
-            if (!exists && !isGeneric && supplierName.length > 2) {
-                try { await push(ref(db, SUPPLIERS_PATH), { nombre: supplierName, contacto: 'Auto-registrado', telefono: '', fechaRegistro: new Date().toLocaleDateString() }); } catch (e) { console.error("Error adding supplier", e); }
-            }
-
-            if (!isGeneric && supplierName.length > 2) {
-               try {
-                  const cleanSupplierKey = supplierName.replace(/[.#$/[\]]/g, "_");
-                  await set(ref(db, `${PRICE_HISTORY_PATH}/${codigo}/${cleanSupplierKey}`), { price: parseFloat(newCost), supplierName: supplierName, lastUpdated: Date.now() });
-               } catch (e) { console.error("Error saving price history", e); }
-            }
-        }
-    }
-
-    if (tipo === 'exit' && workerName) {
-        const wName = workerName.trim();
-        const exists = workersList.some(w => w.name.toLowerCase() === wName.toLowerCase());
-        if (!exists && wName.length > 2) {
-            try { await push(ref(db, WORKERS_PATH), { name: wName }); } catch(e) { console.error("Error adding worker", e); }
-        }
-    }
-
-    try {
-      await update(ref(db, `${DB_PATH}/${codigo}`), productUpdates);
-
-      let historyDestino = destino || 'No especificado';
-      // Ajuste: Si es salida, usamos el nombre del trabajador directamente
-      if (tipo === 'exit') {
-          historyDestino = workerName || 'Salida General'; 
-      }
-
-      await push(ref(db, HISTORY_PATH), {
-        timestamp: Date.now(),
-        fecha: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
-        codigo, material: nombreMaterial,
-        tipo: tipo === 'entry' ? 'Entrada' : 'Salida',
-        cantidad, stockAnterior: stockActual, stockNuevo: stockActual + adjustment,
-        usuario: userProfile ? userProfile.name : 'Admin', 
-        destino: historyDestino,
-        costoRegistrado: newCost || null,
-        trabajador: workerName || null 
-      });
-      addToast("Stock actualizado", "success");
-    } catch (e) { addToast("Error al actualizar", "error"); }
-  };
-
-  const handleSaveProduct = async (formData, isEditMode) => {
-    if (!user || !isAdmin) return;
-    try {
-      const itemRef = ref(db, `${DB_PATH}/${formData.codigo}`);
-      const itemWithDesc = { ...formData, descripcion: formData.material };
-      
-      if (isEditMode) {
-          await update(itemRef, itemWithDesc);
-          addToast("Producto actualizado", "success");
-      } else { 
-          await set(itemRef, itemWithDesc); 
-          
-          await push(ref(db, HISTORY_PATH), {
-            timestamp: Date.now(),
-            fecha: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
-            codigo: formData.codigo, 
-            material: formData.material,
-            tipo: 'Creación',
-            cantidad: formData.stock, 
-            stockAnterior: 0, 
-            stockNuevo: formData.stock,
-            usuario: userProfile ? userProfile.name : 'Admin', 
-            destino: 'Sistema',
-          });
-
-          setActiveTab('inventory'); 
-          setSearchTerm(formData.codigo); 
-          addToast("Producto creado", "success");
-      }
-    } catch (e) { addToast("Error al guardar", "error"); }
-  };
-
-  // --- LÓGICA DE BORRADO ROBUSTA ---
-  const handleDeleteProduct = async (product) => { 
-      if (!isAdmin) return; 
-      if (window.confirm("¿Estás seguro de borrar este producto?")) { 
-          try { 
-              // Usar firebaseKey si existe (más seguro), si no, usar código
-              const key = product.firebaseKey || product.codigo;
-              await remove(ref(db, `${DB_PATH}/${key}`)); 
-              addToast("Eliminado correctamente", "success"); 
-          } catch (e) { 
-              console.error(e);
-              addToast("Error al eliminar: " + e.message, "error"); 
-          } 
-      } 
-  };
-
-  // --- HELPERS PARA MODALES ---
-  const handleOpenStockModal = (item) => { setSelectedItem(item); setIsStockModalOpen(true); };
-  const handleOpenCreateModal = () => { setEditingItem(null); setIsFormModalOpen(true); };
-  const handleOpenEditModal = (item) => { setEditingItem(item); setIsFormModalOpen(true); };
-  const handleOpenProductHistory = (item) => { setHistoryItem(item); setIsHistoryModalOpen(true); };
-
-  // --- LÓGICA DE CATEGORÍAS PARA FILTROS ---
-  const configCategories = categoriesList.map(c => c.name); 
-  const inventoryCategories = [...new Set(inventoryData.map(item => item.categoria).filter(Boolean))];
-  const availableCategories = ['Todas', ...new Set([...configCategories, ...inventoryCategories])].sort(); 
-
-  const filteredData = useMemo(() => {
-    return inventoryData.filter(item => {
-      const matchSearch = item.material.toLowerCase().includes(searchTerm.toLowerCase()) || item.codigo.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchCat = selectedCategory === 'Todas' || item.categoria === selectedCategory;
-      let matchStatus = true;
-      if (statusFilter === 'low') matchStatus = item.stock <= 5 && item.stock > 0;
-      if (statusFilter === 'out') matchStatus = item.stock <= 0;
-      return matchSearch && matchCat && matchStatus;
-    });
-  }, [searchTerm, selectedCategory, inventoryData, statusFilter]);
-
-  const filteredHistory = useMemo(() => {
-    return historyData.filter(item => {
-      const term = historySearchTerm.toLowerCase();
-      const matchSearch = (item.material || '').toLowerCase().includes(term) ||
-                          (item.codigo || '').toLowerCase().includes(term) ||
-                          (item.usuario || '').toLowerCase().includes(term) ||
-                          (item.destino || '').toLowerCase().includes(term) ||
-                          (item.trabajador || '').toLowerCase().includes(term); 
-      
-      const matchType = historyFilterType === 'all' ||
-                        (historyFilterType === 'entry' && item.tipo === 'Entrada') ||
-                        (historyFilterType === 'exit' && item.tipo === 'Salida');
-      
-      return matchSearch && matchType;
-    });
-  }, [historyData, historySearchTerm, historyFilterType]);
-
-  const categories = ['Todas', ...new Set(inventoryData.map(item => item.categoria).filter(Boolean))];
-  const rawCategories = [...new Set(inventoryData.map(item => item.categoria).filter(Boolean))].sort();
-  const totalValue = inventoryData.reduce((acc, item) => acc + (item.stock * parseFloat(item.costo || 0) * (item.aplicaIVA ? 1.15 : 1)), 0);
-
-  const rotationData = useMemo(() => {
-    const rotation = {};
-    historyData.forEach(h => {
-      if (h.tipo === 'Salida') {
-        const key = h.material || 'Desconocido';
-        rotation[key] = (rotation[key] || 0) + Number(h.cantidad);
-      }
-    });
-    return Object.entries(rotation)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  }, [historyData]);
-
-  if (authError === 'AUTH_CONFIG_MISSING') return <div className="p-10 text-center text-red-600 font-bold">Falta configurar Auth Anónimo en Firebase</div>;
-  if (loading) return <div className="h-screen flex items-center justify-center bg-emerald-900 text-white">Cargando...</div>;
+  const inputClass = `w-full p-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-stone-800 border-stone-700 text-white' : 'bg-stone-50 border-stone-200 text-stone-900'}`;
+  const labelClass = `block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-stone-400' : 'text-stone-600'}`;
 
   return (
-    <div className={`flex h-screen font-sans transition-colors duration-300 ${isDarkMode ? 'bg-slate-900 text-slate-100' : 'bg-[#f8fafc] text-slate-800'}`}>
-      <aside className={`w-20 md:w-64 transition-all duration-300 flex flex-col fixed h-full z-20 shadow-2xl backdrop-blur-xl border-r ${isDarkMode ? 'bg-slate-900/95 border-slate-800' : 'bg-white/80 border-white/50'}`}>
-        <div className="p-6 flex flex-col justify-center h-20">
-          <div className="flex items-center justify-between">
-            {sidebarOpen && (
-              <div className="flex items-center gap-3">
-                <div className={`relative group ${isAdmin ? 'cursor-pointer' : ''}`} onClick={handleLogoClick} title={isAdmin ? "Cambiar logo" : ""}>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg overflow-hidden ${isDarkMode ? 'bg-slate-800' : 'bg-white'}`}>
-                    <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
-                  </div>
-                  {isAdmin && <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/50 rounded-xl transition-opacity"><Upload size={16} className="text-white"/></div>}
-                  <input type="file" ref={fileInputRef} onChange={handleLogoChange} className="hidden" accept="image/*" />
-                </div>
+    <div className="space-y-8 animate-in fade-in duration-300 max-w-6xl mx-auto">
+      <div className={`p-6 rounded-3xl border shadow-sm relative overflow-hidden ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-gradient-to-br from-emerald-950 via-teal-900 to-stone-900 text-white border-emerald-950'}`}>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-3xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-500 text-white flex items-center gap-1">
+                <GraduationCap size={12} /> Asistencia Técnica para Rentabilidad Cafetalera
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-emerald-200 backdrop-blur-md">
+                CONATRADEC • MIFIC • CETREX
+              </span>
+            </div>
+            <h3 className="text-2xl md:text-3xl font-black text-white">
+              Capacitación & Certificación de Calidad Comercial
+            </h3>
+            <p className="text-xs md:text-sm text-emerald-100/90 leading-relaxed">
+              Accede a programas técnicos especializados para elevar el puntaje de cata de tus microlotes, obtener certificados de exportación y negociar contratos de venta directa al <strong>precio real de mercado</strong>.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-center shrink-0 space-y-1">
+            <Award size={28} className="mx-auto text-emerald-300" />
+            <p className="text-xs uppercase font-bold text-emerald-200">Finca Productora</p>
+            <p className="text-base font-black text-white">{currentUser.farmName || 'Mi Finca'}</p>
+            <p className="text-[10px] text-emerald-300/80">{currentUser.department || 'Nicaragua'}</p>
+          </div>
+        </div>
+      </div>
+
+      {userRequests.length > 0 && (
+        <div className={`p-6 rounded-3xl border ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-100/80 shadow-sm'}`}>
+          <h4 className="text-base font-black text-stone-900 dark:text-white flex items-center gap-2 mb-4">
+            <CheckSquare size={18} className="text-emerald-600" /> Mis Solicitudes de Capacitación ({userRequests.length})
+          </h4>
+          <div className="space-y-3">
+            {userRequests.map((req) => (
+              <div key={req.id} className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
                 <div>
-                  <h1 className={`text-xl font-bold tracking-tight leading-tight ${isDarkMode ? 'text-slate-900' : 'text-slate-900'}`}>
-                    CONTROL <span className="text-emerald-500">ISC</span>
-                  </h1>
-                  <p className={`text-[10px] font-medium tracking-wider uppercase mt-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Matagalpa</p>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                    {req.entity}
+                  </span>
+                  <h5 className="font-extrabold text-sm text-stone-900 dark:text-white mt-1">{req.programTitle}</h5>
+                  <p className="text-xs text-stone-500 mt-0.5">Técnico: {req.assignedTechnician} • Modalidad: {req.preferredModality}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-300">
+                    {req.status}
+                  </span>
+                  <p className="text-xs font-mono font-bold text-stone-400 mt-1">{req.scheduledDate}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {filteredPrograms.map((prog) => (
+          <div key={prog.id} className={`p-6 rounded-3xl border flex flex-col justify-between ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+            <div>
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
+                  <prog.icon size={22} />
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                  {prog.badge}
+                </span>
+              </div>
+              <span className="text-xs font-bold text-emerald-600 block">{prog.entityFullName}</span>
+              <h4 className="text-base font-black text-stone-900 dark:text-white mt-1">{prog.title}</h4>
+              <p className="text-xs text-stone-600 dark:text-stone-400 mt-2 leading-relaxed">{prog.description}</p>
+              
+              <div className={`mt-4 p-3 rounded-xl border text-xs space-y-1 ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-100'}`}>
+                <div className="flex justify-between"><span className="text-stone-400">Duración:</span><span className="font-bold">{prog.duration}</span></div>
+                <div className="flex justify-between"><span className="text-stone-400">Costo:</span><span className="font-bold text-emerald-600">{prog.cost}</span></div>
+              </div>
+            </div>
+
+            <div className="mt-5 pt-4 border-t border-stone-100 dark:border-stone-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => handleOpenRequest(prog)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5"
+              >
+                <Send size={14} /> Solicitar Asistencia
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {isModalOpen && selectedProgram && (
+        <ModalWrapper
+          isDark={isDark}
+          onClose={() => setIsModalOpen(false)}
+          title={`Solicitud Técnica • ${selectedProgram.entity}`}
+        >
+          <form onSubmit={handleFormSubmit} className="p-6 space-y-4">
+            <div>
+              <label className={labelClass}>Objetivo Comercial / Meta de Rentabilidad de la Finca</label>
+              <textarea
+                required
+                rows={3}
+                value={requestForm.specificGoal}
+                onChange={e => setRequestForm({ ...requestForm, specificGoal: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 rounded-xl text-xs font-semibold border">
+                Cancelar
+              </button>
+              <button type="submit" className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
+                <Send size={15} /> Confirmar Solicitud
+              </button>
+            </div>
+          </form>
+        </ModalWrapper>
+      )}
+    </div>
+  );
+};
+
+const InstitutionalEcosystemView = ({ isDark }) => {
+  const actors = [
+    {
+      name: "CONATRADEC",
+      badge: "Rector Cafetalero",
+      role: "Comisión Nacional para la Transformación y Desarrollo de la Caficultura",
+      icon: Award,
+      impact: "Organización de la Taza de la Excelencia Nicaragua 2026 (Récord US$140/lb).",
+      actions: ["Certificación oficial de calidad de exportación", "Promoción directa ante compradores de 19 países"]
+    },
+    {
+      name: "CETREX & Ventanilla Única",
+      badge: "Comercio Exterior",
+      role: "Centro de Trámites de las Exportaciones",
+      icon: Truck,
+      impact: "Agilidad en emisión de certificados de origen OIC y despacho aduanal sin trabas burocráticas.",
+      actions: ["Certificado de origen digital", "Inspección y precintado directo hacia Puerto Corinto"]
+    },
+    {
+      name: "Beneficios Secos (Sébaco/Matagalpa)",
+      badge: "Agroindustria",
+      role: "Trillado, Selección Óptica y Ensacado GrainPro",
+      icon: Droplet,
+      impact: "Preservación estricta de la segregación de microlotes y control de humedad (10.5%-11.5%).",
+      actions: ["Trillado por lote individual", "Clasificación por malla (18+) y empaque hermético"]
+    }
+  ];
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-300 max-w-5xl mx-auto">
+      <div className={`p-6 rounded-3xl border ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-100/70 shadow-sm'}`}>
+        <h3 className="text-xl font-black text-stone-900 dark:text-white flex items-center gap-2">
+          <Truck className="text-emerald-600" size={22} /> Ecosistema de Exportación Directa & Valor Agregado
+        </h3>
+        <p className="text-xs text-stone-500 mt-1">
+          Articulación logística y comercial para que el 100% del valor pactado en el contrato llegue directamente a la cuenta del caficultor.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {actors.map((actor, idx) => (
+          <div key={idx} className={`p-6 rounded-3xl border flex flex-col justify-between ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+            <div>
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 rounded-2xl w-fit mb-3">
+                <actor.icon size={22} />
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                {actor.badge}
+              </span>
+              <h4 className="text-base font-black text-stone-900 dark:text-white mt-2">{actor.name}</h4>
+              <p className="text-xs text-stone-600 dark:text-stone-400 mt-2">{actor.impact}</p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800 space-y-1">
+              {actor.actions.map((act, i) => (
+                <div key={i} className="flex items-center gap-1.5 text-xs text-stone-500">
+                  <Check size={12} className="text-emerald-600 shrink-0" />
+                  <span>{act}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const AuthModal = ({ isOpen, onClose, isDark, onLoginSuccess, portalRole = 'producer' }) => {
+  const [authMode, setAuthMode] = useState('login');
+  const [producerStep, setProducerStep] = useState(1);
+  const [loginEmail, setLoginEmail] = useState('');
+  
+  const [prodForm, setProdForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    farmName: '',
+    department: 'Jinotega',
+    municipality: 'San Rafael del Norte',
+    altitude: 1420,
+    manzanasCultivadas: 12.0,
+    estimatedHarvestQuintales: 220,
+    costOfProductionPerQqUSD: 130.00,
+    targetPricePerKgUSD: 9.50,
+    varieties: 'Maracaturra, Caturra, Java Nica',
+    certifications: 'Orgánico Biolatina, SHG Especialidad',
+    organolepticNotes: 'Acidez cítrica brillante, fragancia a jazmín y miel de abeja, notas a chocolate fino y cuerpo prolongado.',
+    lat: 13.2125,
+    lng: -86.1108
+  });
+
+  const [buyerForm, setBuyerForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    companyName: '',
+    country: 'Alemania',
+    city: 'Hamburgo',
+    preferredCurrency: 'EUR',
+    annualVolumeBags: 50,
+    targetSCARange: '86 - 89+ SCA'
+  });
+
+  if (!isOpen) return null;
+
+  const handleQuickDemoLogin = (user) => {
+    onLoginSuccess(user);
+    onClose();
+  };
+
+  const handleLoginSubmit = (e) => {
+    e.preventDefault();
+    const existing = DEMO_USERS.find(u => u.email.toLowerCase() === loginEmail.toLowerCase() && u.role === portalRole);
+    if (existing) {
+      onLoginSuccess(existing);
+    } else {
+      const newUser = {
+        id: `u-${Date.now()}`,
+        role: portalRole,
+        email: loginEmail,
+        name: loginEmail.split('@')[0],
+        farmName: portalRole === 'producer' ? 'Finca Santa Lucía' : undefined,
+        companyName: portalRole === 'buyer' ? 'Direct Roastery' : undefined,
+        department: 'Jinotega',
+        altitude: 1350,
+        costOfProductionPerQqUSD: 130.00,
+        targetPricePerKgUSD: 9.00,
+        netProfitEstimatedUSD: 35000,
+        lat: 13.0918,
+        lng: -85.9995,
+        published: true,
+        avatar: portalRole === 'producer' 
+          ? "https://images.unsplash.com/photo-1595858600863-7182ecf7b494?auto=format&fit=crop&w=300&q=80" 
+          : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80"
+      };
+      onLoginSuccess(newUser);
+    }
+    onClose();
+  };
+
+  const handlePublishProducerProfile = () => {
+    const totalKg = (Number(prodForm.estimatedHarvestQuintales) || 100) * KG_PER_QUINTAL;
+    const grossIncome = totalKg * (Number(prodForm.targetPricePerKgUSD) || 9.00);
+    const totalCost = (Number(prodForm.estimatedHarvestQuintales) || 100) * (Number(prodForm.costOfProductionPerQqUSD) || 130.00);
+    const calculatedProfit = Math.max(0, grossIncome - totalCost);
+
+    const newProducer = {
+      id: `u-prod-${Date.now()}`,
+      role: 'producer',
+      ...prodForm,
+      lat: Number(prodForm.lat) || 13.0918,
+      lng: Number(prodForm.lng) || -85.9995,
+      manzanasCultivadas: Number(prodForm.manzanasCultivadas) || 1,
+      altitude: Number(prodForm.altitude) || 1200,
+      estimatedHarvestQuintales: Number(prodForm.estimatedHarvestQuintales) || 180,
+      costOfProductionPerQqUSD: Number(prodForm.costOfProductionPerQqUSD) || 130,
+      targetPricePerKgUSD: Number(prodForm.targetPricePerKgUSD) || 9.50,
+      netProfitEstimatedUSD: calculatedProfit,
+      published: true,
+      avatar: "https://images.unsplash.com/photo-1595858600863-7182ecf7b494?auto=format&fit=crop&w=300&q=80",
+      farmImage: "https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&w=1000"
+    };
+    onLoginSuccess(newProducer, true);
+    onClose();
+  };
+
+  const handleRegisterBuyer = (e) => {
+    e.preventDefault();
+    const newBuyer = {
+      id: `u-buyer-${Date.now()}`,
+      role: 'buyer',
+      ...buyerForm,
+      annualVolumeBags: Number(buyerForm.annualVolumeBags) || 10,
+      avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=300&q=80"
+    };
+    onLoginSuccess(newBuyer, true);
+    onClose();
+  };
+
+  const inputClass = `w-full p-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-stone-800 border-stone-700 text-white' : 'bg-stone-50 border-stone-200 text-stone-900'}`;
+  const labelClass = `block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-stone-400' : 'text-stone-600'}`;
+  const altClass = getAltitudeClassification(Number(prodForm.altitude) || 1200);
+
+  const modalTitle = portalRole === 'producer'
+    ? (authMode === 'login' ? 'Acceso al Portal Caficultor' : 'Registro de Finca & Publicación de Lotes')
+    : (authMode === 'login' ? 'Acceso al Portal de Compradores' : 'Registrarme como Comprador');
+
+  const filteredDemoUsers = DEMO_USERS.filter(u => u.role === portalRole);
+
+  return (
+    <ModalWrapper 
+      isDark={isDark} 
+      onClose={onClose} 
+      title={modalTitle} 
+      maxWidth={authMode === 'register' && portalRole === 'producer' ? 'max-w-3xl' : 'max-w-lg'}
+    >
+      <div className="p-6 space-y-5 max-h-[84vh] overflow-y-auto">
+        <div className={`p-1 rounded-xl flex border ${isDark ? 'bg-stone-950 border-stone-800' : 'bg-stone-100 border-stone-200'}`}>
+          <button
+            type="button"
+            onClick={() => setAuthMode('login')}
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${authMode === 'login' ? 'bg-emerald-600 text-white shadow-sm' : 'text-stone-500'}`}
+          >
+            <LogIn size={14} /> Iniciar Sesión
+          </button>
+          <button
+            type="button"
+            onClick={() => setAuthMode('register')}
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${authMode === 'register' ? 'bg-emerald-600 text-white shadow-sm' : 'text-stone-500'}`}
+          >
+            <UserPlus size={14} /> {portalRole === 'producer' ? 'Registrar Mi Finca' : 'Registrarme'}
+          </button>
+        </div>
+
+        {authMode === 'login' && (
+          <div className="space-y-4">
+            <div className={`p-3.5 rounded-xl border ${isDark ? 'bg-emerald-950/20 border-emerald-900/40' : 'bg-emerald-50/70 border-emerald-200'}`}>
+              <p className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Sparkles size={14} /> Cuentas Demo Rápidas:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {filteredDemoUsers.map(user => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => handleQuickDemoLogin(user)}
+                    className={`p-2 rounded-lg text-left text-xs border transition-all flex items-center gap-2 hover:scale-[1.02] ${isDark ? 'bg-stone-900 border-stone-800 hover:border-emerald-600 text-stone-200' : 'bg-white border-stone-200 hover:border-emerald-600 text-stone-800'}`}
+                  >
+                    <img src={user.avatar} alt={user.name} className="w-7 h-7 rounded-full object-cover shrink-0" />
+                    <div className="overflow-hidden">
+                      <p className="font-bold truncate text-[11px]">{user.name}</p>
+                      <p className="text-[10px] text-stone-500 truncate">
+                        {user.role === 'producer' ? `🌱 ${user.farmName}` : `☕ ${user.companyName}`}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <div>
+                <label className={labelClass}>Correo Electrónico</label>
+                <input
+                  required
+                  type="email"
+                  placeholder={portalRole === 'producer' ? "ejemplo@fincaesperanza.ni" : "compras@roastery.com"}
+                  value={loginEmail}
+                  onChange={e => setLoginEmail(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2"
+              >
+                <LogIn size={16} /> Entrar al Panel
+              </button>
+            </form>
+          </div>
+        )}
+
+        {authMode === 'register' && portalRole === 'producer' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { step: 1, label: '1. Datos & Costos', icon: Leaf },
+                { step: 2, label: '2. Ubicación GPS', icon: MapPin },
+                { step: 3, label: '3. Consolidación', icon: Check }
+              ].map((s) => (
+                <button
+                  key={s.step}
+                  type="button"
+                  onClick={() => setProducerStep(s.step)}
+                  className={`p-2.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all ${producerStep === s.step ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-stone-100 dark:bg-stone-800 text-stone-500'}`}
+                >
+                  <s.icon size={13} /> {s.label}
+                </button>
+              ))}
+            </div>
+
+            {producerStep === 1 && (
+              <div className="space-y-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Nombre de la Finca *</label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="Ej. Finca La Esperanza"
+                      value={prodForm.farmName}
+                      onChange={e => setProdForm({ ...prodForm, farmName: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Nombre del Productor(a) *</label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="Ej. María Elena González"
+                      value={prodForm.name}
+                      onChange={e => setProdForm({ ...prodForm, name: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Altura (msnm) *</label>
+                    <input
+                      required
+                      type="number"
+                      min="600"
+                      max="2200"
+                      value={prodForm.altitude}
+                      onChange={e => setProdForm({ ...prodForm, altitude: Number(e.target.value) })}
+                      className={inputClass}
+                    />
+                    <span className="text-[10px] text-emerald-600 font-bold block mt-1">{altClass.label}</span>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Variedades Sembradas *</label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="Ej. Maracaturra, Java Nica, Pacamara"
+                      value={prodForm.varieties}
+                      onChange={e => setProdForm({ ...prodForm, varieties: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className={labelClass}>Cosecha Est. (qq Oro)</label>
+                    <input
+                      required
+                      type="number"
+                      min="1"
+                      value={prodForm.estimatedHarvestQuintales}
+                      onChange={e => setProdForm({ ...prodForm, estimatedHarvestQuintales: Number(e.target.value) })}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Costo Producción ($/qq)</label>
+                    <input
+                      required
+                      type="number"
+                      min="1"
+                      value={prodForm.costOfProductionPerQqUSD}
+                      onChange={e => setProdForm({ ...prodForm, costOfProductionPerQqUSD: Number(e.target.value) })}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Precio Objetivo ($/Kg)</label>
+                    <input
+                      required
+                      type="number"
+                      step="0.2"
+                      value={prodForm.targetPricePerKgUSD}
+                      onChange={e => setProdForm({ ...prodForm, targetPricePerKgUSD: Number(e.target.value) })}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Perfil Sensorial Organoléptico (Notas en Taza) *</label>
+                  <textarea
+                    required
+                    rows={2}
+                    placeholder="Describa aroma, acidez, notas frutales o achocolatadas..."
+                    value={prodForm.organolepticNotes}
+                    onChange={e => setProdForm({ ...prodForm, organolepticNotes: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setProducerStep(2)}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+                >
+                  Continuar a Ubicación GPS <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+
+            {producerStep === 2 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Latitud (°N)</label>
+                    <input
+                      required
+                      type="number"
+                      step="0.0001"
+                      value={prodForm.lat}
+                      onChange={e => setProdForm({ ...prodForm, lat: Number(e.target.value) })}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Longitud (°O)</label>
+                    <input
+                      required
+                      type="number"
+                      step="0.0001"
+                      value={prodForm.lng}
+                      onChange={e => setProdForm({ ...prodForm, lng: Number(e.target.value) })}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setProducerStep(1)}
+                    className="flex-1 py-2.5 rounded-xl text-xs font-semibold border"
+                  >
+                    Volver
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProducerStep(3)}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold"
+                  >
+                    Ir a Consolidación
+                  </button>
                 </div>
               </div>
             )}
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-1.5 rounded-lg transition-colors md:hidden ${isDarkMode ? 'text-slate-400 hover:bg-slate-800' : 'text-slate-400 hover:bg-slate-100'}`}>{sidebarOpen ? <X size={20} /> : <Menu size={20} />}</button>
+
+            {producerStep === 3 && (
+              <div className="space-y-4">
+                <div className={`p-4 rounded-2xl border space-y-2 text-xs ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
+                  <h4 className="font-bold text-sm text-stone-900 dark:text-white">{prodForm.farmName}</h4>
+                  <p><strong>Productor:</strong> {prodForm.name}</p>
+                  <p><strong>Altura:</strong> {prodForm.altitude} msnm ({altClass.label})</p>
+                  <p><strong>Cosecha Estimada:</strong> {prodForm.estimatedHarvestQuintales} qq Oro ({(prodForm.estimatedHarvestQuintales * KG_PER_QUINTAL).toLocaleString()} Kg)</p>
+                  <p><strong>Precio Objetivo:</strong> ${prodForm.targetPricePerKgUSD} / Kg</p>
+                  <p><strong>Ganancia Proyectada:</strong> ${Math.max(0, (prodForm.estimatedHarvestQuintales * KG_PER_QUINTAL * prodForm.targetPricePerKgUSD) - (prodForm.estimatedHarvestQuintales * prodForm.costOfProductionPerQqUSD)).toLocaleString()} USD</p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setProducerStep(2)}
+                    className="flex-1 py-3 rounded-xl text-xs font-semibold border"
+                  >
+                    Ajustar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePublishProducerProfile}
+                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5"
+                  >
+                    <Check size={16} /> Publicar Ficha Comercial
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {authMode === 'register' && portalRole === 'buyer' && (
+          <form onSubmit={handleRegisterBuyer} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Nombre de Contacto *</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="Ej. Alex Smith"
+                  value={buyerForm.name}
+                  onChange={e => setBuyerForm({ ...buyerForm, name: e.target.value })}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Empresa / Tostaduría *</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="Ej. Nordic Specialty Roasters"
+                  value={buyerForm.companyName}
+                  onChange={e => setBuyerForm({ ...buyerForm, companyName: e.target.value })}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>País de Destino *</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="Ej. Alemania"
+                  value={buyerForm.country}
+                  onChange={e => setBuyerForm({ ...buyerForm, country: e.target.value })}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Moneda Preferida</label>
+                <select
+                  value={buyerForm.preferredCurrency}
+                  onChange={e => setBuyerForm({ ...buyerForm, preferredCurrency: e.target.value })}
+                  className={inputClass}
+                >
+                  <option value="EUR">EUR (€ Euro)</option>
+                  <option value="USD">USD ($ Dólar)</option>
+                  <option value="GBP">GBP (£ Libra)</option>
+                  <option value="NIO">NIO (C$ Córdoba)</option>
+                </select>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+            >
+              <Save size={16} /> Registrarme como Comprador
+            </button>
+          </form>
+        )}
+      </div>
+    </ModalWrapper>
+  );
+};
+
+const MyFarmProfileView = ({ currentUser, onUpdateProfile, isDark, currency }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({ ...currentUser });
+
+  useEffect(() => {
+    setFormData({ ...currentUser });
+  }, [currentUser]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onUpdateProfile({ ...formData, published: true });
+    setIsEditing(false);
+  };
+
+  const inputClass = `w-full p-2.5 border rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-stone-800 border-stone-700 text-white' : 'bg-white border-stone-300 text-stone-900'}`;
+  const labelClass = `block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-stone-400' : 'text-stone-600'}`;
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-300 max-w-5xl mx-auto">
+      <div className={`rounded-3xl border overflow-hidden shadow-sm ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+        <div className="h-44 relative bg-stone-900">
+          <img
+            src={currentUser.farmImage || "https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&q=80&w=1200"}
+            alt="Finca"
+            className="w-full h-full object-cover opacity-60"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/40 to-transparent flex items-end justify-between p-6">
+            <div className="flex items-center gap-4">
+              <img
+                src={currentUser.avatar || "https://images.unsplash.com/photo-1595858600863-7182ecf7b494?auto=format&fit=crop&w=300&q=80"}
+                alt={currentUser.name}
+                className="w-16 h-16 rounded-2xl border-4 border-white dark:border-stone-900 shadow-xl object-cover bg-stone-200"
+              />
+              <div className="text-white">
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-600 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                  <ShieldCheck size={12} /> Finca Verificada en Origen
+                </span>
+                <h2 className="text-2xl font-black mt-1">{currentUser.farmName || 'Mi Finca'}</h2>
+                <p className="text-xs opacity-90 flex items-center gap-1">
+                  <MapPin size={12} className="text-emerald-400" /> {currentUser.municipality || 'San Rafael del Norte'}, {currentUser.department || 'Jinotega'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className="px-4 py-2 bg-white/90 hover:bg-white text-stone-900 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+            >
+              <Edit3 size={14} /> {isEditing ? 'Cancelar' : 'Editar Ficha'}
+            </button>
+          </div>
+        </div>
+
+        <div className={`grid grid-cols-2 sm:grid-cols-4 divide-x border-b ${isDark ? 'border-stone-800 divide-stone-800 bg-stone-950/50' : 'border-stone-100 divide-stone-100 bg-emerald-50/30'}`}>
+          <div className="p-4 text-center">
+            <p className="text-[10px] uppercase font-bold text-stone-400">Altura</p>
+            <p className="text-lg font-black text-stone-800 dark:text-stone-200 font-mono mt-0.5">{currentUser.altitude || 1350} msnm</p>
+          </div>
+          <div className="p-4 text-center">
+            <p className="text-[10px] uppercase font-bold text-stone-400">Cosecha Estimada</p>
+            <p className="text-lg font-black text-emerald-600 font-mono mt-0.5">{currentUser.estimatedHarvestQuintales || 200} qq</p>
+          </div>
+          <div className="p-4 text-center">
+            <p className="text-[10px] uppercase font-bold text-stone-400">Costo Base / qq</p>
+            <p className="text-lg font-black text-stone-800 dark:text-stone-200 font-mono mt-0.5">{formatPrice(currentUser.costOfProductionPerQqUSD || 130, currency)}</p>
+          </div>
+          <div className="p-4 text-center">
+            <p className="text-[10px] uppercase font-bold text-stone-400">Precio Objetivo / Kg</p>
+            <p className="text-lg font-black text-emerald-600 font-mono mt-0.5">{formatPrice(currentUser.targetPricePerKgUSD || 9.50, currency)}</p>
+          </div>
+        </div>
+
+        <div className="p-6">
+          {!isEditing ? (
+            <div className="space-y-4">
+              <div className={`p-4 rounded-2xl border space-y-2 text-xs ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
+                <p><strong>Variedades Sembradas:</strong> {currentUser.varieties}</p>
+                <p><strong>Certificaciones:</strong> {currentUser.certifications}</p>
+                <p><strong>Notas Organolépticas:</strong> "{currentUser.organolepticNotes}"</p>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Nombre de la Finca</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.farmName || ''}
+                    onChange={e => setFormData({ ...formData, farmName: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Nombre del Productor</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name || ''}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-semibold border"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold"
+                >
+                  Guardar Parámetros
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MyBuyerProfileView = ({ currentUser, onUpdateProfile, isDark, currency }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({ ...currentUser });
+
+  useEffect(() => {
+    setFormData({ ...currentUser });
+  }, [currentUser]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onUpdateProfile(formData);
+    setIsEditing(false);
+  };
+
+  const inputClass = `w-full p-2.5 border rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-stone-800 border-stone-700 text-white' : 'bg-white border-stone-300 text-stone-900'}`;
+  const labelClass = `block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-stone-400' : 'text-stone-600'}`;
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-300 max-w-4xl mx-auto">
+      <div className={`p-6 rounded-3xl border shadow-sm ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-6 border-stone-200 dark:border-stone-800">
+          <div className="flex items-center gap-4">
+            <img
+              src={currentUser.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80"}
+              alt={currentUser.name}
+              className="w-16 h-16 rounded-2xl border-2 border-emerald-500 object-cover shadow-md"
+            />
+            <div>
+              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-300">
+                Tostador / Importador Directo
+              </span>
+              <h3 className="text-xl font-black text-stone-900 dark:text-white mt-1">{currentUser.companyName || 'Mi Tostaduría'}</h3>
+              <p className="text-xs text-stone-500">{currentUser.name} • {currentUser.city ? `${currentUser.city}, ` : ''}{currentUser.country || 'Internacional'}</p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsEditing(!isEditing)}
+            className="px-4 py-2 bg-emerald-50 dark:bg-stone-800 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs font-bold border transition-all"
+          >
+            {isEditing ? 'Cancelar' : 'Editar'}
+          </button>
+        </div>
+
+        <div className="pt-6">
+          {!isEditing ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
+                <p className="text-[10px] font-bold text-stone-400 uppercase">Demanda Anual</p>
+                <p className="text-2xl font-black text-stone-900 dark:text-white font-mono mt-1">{currentUser.annualVolumeBags || 50} Sacos</p>
+              </div>
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
+                <p className="text-[10px] font-bold text-stone-400 uppercase">Calidad Objetivo</p>
+                <p className="text-2xl font-black text-emerald-600 font-mono mt-1">{currentUser.targetSCARange || '86 - 90+ SCA'}</p>
+              </div>
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
+                <p className="text-[10px] font-bold text-stone-400 uppercase">Moneda</p>
+                <p className="text-2xl font-black text-stone-900 dark:text-white font-mono mt-1">{currentUser.preferredCurrency || currency}</p>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Nombre de la Empresa</label>
+                  <input
+                    type="text"
+                    value={formData.companyName || ''}
+                    onChange={e => setFormData({ ...formData, companyName: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Contacto</label>
+                  <input
+                    type="text"
+                    value={formData.name || ''}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setIsEditing(false)} className="flex-1 py-2.5 rounded-xl text-xs font-semibold border">
+                  Cancelar
+                </button>
+                <button type="submit" className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold">
+                  Guardar Perfil
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ProducerCostCalculator = ({ isDark, currency, currentUser }) => {
+  const [canPickersRateNIO, setCanPickersRateNIO] = useState(55);
+  const [cansPerQuintal, setCansPerQuintal] = useState(24);
+  const [wetMillingCostUSD, setWetMillingCostUSD] = useState(14);
+  const [dryMillTransportUSD, setDryMillTransportUSD] = useState(16);
+  const [targetSalePriceUSDPerKg, setTargetSalePriceUSDPerKg] = useState(9.80);
+  const [lotSizeQuintales, setLotSizeQuintales] = useState(20);
+
+  const nioToUsd = 1 / (CURRENCY_RATES.NIO.rate || 36.75);
+  const pickingCostPerQqUSD = (canPickersRateNIO * cansPerQuintal) * nioToUsd;
+  const totalCostPerQqUSD = pickingCostPerQqUSD + wetMillingCostUSD + dryMillTransportUSD + 10;
+  const totalCostPerKgUSD = totalCostPerQqUSD / KG_PER_QUINTAL;
+
+  const totalLotKg = lotSizeQuintales * KG_PER_QUINTAL;
+  const grossIncomeUSD = totalLotKg * targetSalePriceUSDPerKg;
+  const totalProductionCostUSD = totalLotKg * totalCostPerKgUSD;
+  const netMarginUSD = grossIncomeUSD - totalProductionCostUSD;
+  const marginPercentage = grossIncomeUSD > 0 ? ((netMarginUSD / grossIncomeUSD) * 100).toFixed(1) : 0;
+  const commodityComparisonGainUSD = (targetSalePriceUSDPerKg - NY_BENCHMARK_PRICE_USD_KG) * totalLotKg;
+
+  return (
+    <div className={`p-6 rounded-2xl border space-y-6 ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-100/70'}`}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-4 border-stone-200 dark:border-stone-800">
+        <div>
+          <h3 className="text-lg font-black text-stone-900 dark:text-white flex items-center gap-2">
+            <Calculator className="text-emerald-600" size={20} /> Calculadora de Costos Reales & Margen Neto de Ganancia
+          </h3>
+          <p className="text-xs text-stone-500">
+            Calcula el costo real de tu quintal y defiende tu utilidad neta en venta directa ({currentUser?.farmName || 'Finca'}).
+          </p>
+        </div>
+        <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-mono text-xs font-bold rounded-xl self-start sm:self-auto">
+          1 Quintal Oro = 46 Kg
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`p-4 rounded-xl border ${isDark ? 'bg-stone-800/60 border-stone-700' : 'bg-emerald-50/40 border-emerald-100'}`}>
+          <label className="text-xs font-bold uppercase text-stone-500 block mb-1">Pago por Lata de Corte (C$)</label>
+          <input 
+            type="number" 
+            value={canPickersRateNIO} 
+            onChange={(e) => setCanPickersRateNIO(Number(e.target.value))}
+            className={`w-full p-2.5 rounded-lg border text-sm font-bold ${isDark ? 'bg-stone-900 border-stone-700 text-white' : 'bg-white border-stone-300 text-stone-900'}`}
+          />
+        </div>
+
+        <div className={`p-4 rounded-xl border ${isDark ? 'bg-stone-800/60 border-stone-700' : 'bg-emerald-50/40 border-emerald-100'}`}>
+          <label className="text-xs font-bold uppercase text-stone-500 block mb-1">Latas por Quintal Oro</label>
+          <input 
+            type="number" 
+            value={cansPerQuintal} 
+            onChange={(e) => setCansPerQuintal(Number(e.target.value))}
+            className={`w-full p-2.5 rounded-lg border text-sm font-bold ${isDark ? 'bg-stone-900 border-stone-700 text-white' : 'bg-white border-stone-300 text-stone-900'}`}
+          />
+        </div>
+
+        <div className={`p-4 rounded-xl border ${isDark ? 'bg-stone-800/60 border-stone-700' : 'bg-emerald-50/40 border-emerald-100'}`}>
+          <label className="text-xs font-bold uppercase text-stone-500 block mb-1">Precio Venta Objetivo ($/Kg)</label>
+          <input 
+            type="number" 
+            step="0.25"
+            value={targetSalePriceUSDPerKg} 
+            onChange={(e) => setTargetSalePriceUSDPerKg(Number(e.target.value))}
+            className={`w-full p-2.5 rounded-lg border text-sm font-bold text-emerald-600 ${isDark ? 'bg-stone-900 border-stone-700' : 'bg-white border-stone-300'}`}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+        <div className={`p-4 rounded-xl border text-center ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
+          <p className="text-[11px] font-bold text-stone-400 uppercase">Costo Real por Quintal</p>
+          <p className="text-xl font-black font-mono mt-1 text-stone-800 dark:text-stone-200">
+            {formatPrice(totalCostPerQqUSD, currency)}
+          </p>
+          <span className="text-[10px] text-stone-400 font-mono">({formatPrice(totalCostPerKgUSD, currency)}/Kg)</span>
+        </div>
+
+        <div className={`p-4 rounded-xl border text-center ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
+          <p className="text-[11px] font-bold text-stone-400 uppercase">Ingreso Bruto de Venta</p>
+          <p className="text-xl font-black font-mono mt-1 text-emerald-600">
+            {formatPrice(grossIncomeUSD, currency)}
+          </p>
+          <span className="text-[10px] text-stone-400 font-mono">{lotSizeQuintales} qq ({totalLotKg} Kg)</span>
+        </div>
+
+        <div className={`p-4 rounded-xl border text-center ${isDark ? 'bg-emerald-950/30 border-emerald-800/60' : 'bg-emerald-50 border-emerald-200'}`}>
+          <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase">Ganancia Neta para la Finca</p>
+          <p className="text-xl font-black font-mono mt-1 text-emerald-700 dark:text-emerald-300">
+            {formatPrice(netMarginUSD, currency)}
+          </p>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-600 text-white font-bold inline-block mt-1">
+            +{marginPercentage}% Utilidad Neta
+          </span>
+        </div>
+
+        <div className={`p-4 rounded-xl border text-center ${isDark ? 'bg-teal-950/30 border-teal-800/60' : 'bg-teal-50 border-teal-200'}`}>
+          <p className="text-[11px] font-bold text-teal-700 dark:text-teal-400 uppercase">Ganancia Extra vs Bolsa NY</p>
+          <p className="text-xl font-black font-mono mt-1 text-teal-700 dark:text-teal-300">
+            +{formatPrice(commodityComparisonGainUSD, currency)}
+          </p>
+          <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold block mt-1">
+            Capturado en origen
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DigitalCuppingLab = ({ batches, isDark }) => {
+  const [selectedBatchId, setSelectedBatchId] = useState(batches[0]?.id || '');
+  const [fragrance, setFragrance] = useState(8.75);
+  const [flavor, setFlavor] = useState(9.0);
+  const [aftertaste, setAftertaste] = useState(8.75);
+  const [acidity, setAcidity] = useState(9.0);
+  const [body, setBody] = useState(8.75);
+  const [balance, setBalance] = useState(9.0);
+  const [sweetness, setSweetness] = useState(10);
+  const [overall, setOverall] = useState(9.0);
+
+  const selectedBatch = batches.find(b => b.id === selectedBatchId) || batches[0];
+  const totalCalculatedSCA = (fragrance + flavor + aftertaste + acidity + body + balance + sweetness + 10 + 10 + overall).toFixed(2);
+
+  return (
+    <div className={`p-6 rounded-2xl border space-y-6 ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-100/70'}`}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 border-stone-200 dark:border-stone-800">
+        <div>
+          <h3 className="text-lg font-black text-stone-900 dark:text-white flex items-center gap-2">
+            <Award className="text-emerald-600" size={20} /> Laboratorio de Catación Sensorial Digital SCA
+          </h3>
+          <p className="text-xs text-stone-500">Evalúa atributos organolépticos para justificar el precio premium de tu microlote.</p>
+        </div>
+
+        <select 
+          value={selectedBatchId} 
+          onChange={(e) => setSelectedBatchId(e.target.value)}
+          className={`text-xs font-bold py-2 px-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-stone-800 border-stone-700 text-white' : 'bg-emerald-50 border-emerald-200 text-stone-900'}`}
+        >
+          {batches.map(b => (
+            <option key={b.id} value={b.id}>{b.code} - {b.variety} ({b.process})</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[
+            { label: 'Fragancia / Aroma', val: fragrance, set: setFragrance },
+            { label: 'Sabor (Flavor)', val: flavor, set: setFlavor },
+            { label: 'Sabor Residual', val: aftertaste, set: setAftertaste },
+            { label: 'Acidez', val: acidity, set: setAcidity },
+            { label: 'Cuerpo / Sedosidad', val: body, set: setBody },
+            { label: 'Balance General', val: balance, set: setBalance },
+            { label: 'Dulzor', val: sweetness, set: setSweetness },
+            { label: 'Puntaje Global', val: overall, set: setOverall }
+          ].map((attr, idx) => (
+            <div key={idx} className={`p-3.5 rounded-xl border ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-xs font-bold text-stone-700 dark:text-stone-300">{attr.label}</span>
+                <span className="text-xs font-mono font-bold text-emerald-600">{attr.val.toFixed(2)}</span>
+              </div>
+              <input 
+                type="range" 
+                min={6} 
+                max={10} 
+                step={0.25}
+                value={attr.val} 
+                onChange={(e) => attr.set(Number(e.target.value))}
+                className="w-full accent-emerald-600 cursor-pointer" 
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className={`p-6 rounded-2xl border flex flex-col justify-between text-center ${isDark ? 'bg-emerald-950/20 border-emerald-900/40' : 'bg-emerald-50/80 border-emerald-200'}`}>
+          <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">Puntaje Final SCA ({selectedBatch?.code})</span>
+          <span className="text-5xl font-black font-mono text-emerald-600 dark:text-emerald-400 my-4">
+            {totalCalculatedSCA}
+          </span>
+          <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300">Calificación de Alta Especialidad (Direct Trade)</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const BuyerFreightCalculator = ({ isDark, currency }) => {
+  const [destinationRegion, setDestinationRegion] = useState('Europe');
+  const [bagsCount, setBagsCount] = useState(10);
+  const [baseFOBPerKgUSD] = useState(9.80);
+
+  const totalKg = bagsCount * KG_PER_EXPORT_BAG;
+  const greenCoffeeTotalUSD = totalKg * baseFOBPerKgUSD;
+  const freightRates = { Europe: 0.65, NorthAmerica: 0.45, Asia: 0.85 };
+  const estimatedFreightUSD = totalKg * (freightRates[destinationRegion] || 0.65);
+  const exportDocumentationUSD = 180;
+  const totalLandedUSD = greenCoffeeTotalUSD + estimatedFreightUSD + exportDocumentationUSD;
+
+  return (
+    <div className={`p-6 rounded-2xl border space-y-6 ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-100/70'}`}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 border-stone-200 dark:border-stone-800">
+        <div>
+          <h3 className="text-lg font-black text-stone-900 dark:text-white flex items-center gap-2">
+            <Truck className="text-emerald-600" size={20} /> Cotizador de Flete & Landed Cost (FOB Puerto Corinto)
+          </h3>
+          <p className="text-xs text-stone-500">Calcula costos de exportación, trámites aduanales CETREX y flete hasta destino.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className={`p-4 rounded-xl border ${isDark ? 'bg-stone-800/60 border-stone-700' : 'bg-stone-50 border-stone-200'}`}>
+          <label className="text-xs font-bold uppercase text-stone-500 block mb-1">Destino</label>
+          <select 
+            value={destinationRegion} 
+            onChange={(e) => setDestinationRegion(e.target.value)}
+            className={`w-full p-2.5 rounded-lg border text-sm font-bold ${isDark ? 'bg-stone-900 border-stone-700 text-white' : 'bg-white border-stone-300 text-stone-900'}`}
+          >
+            <option value="Europe">🇪🇺 Europa (Hamburgo / Rotterdam)</option>
+            <option value="NorthAmerica">🇺🇸 Norteamérica (Miami / Seattle)</option>
+            <option value="Asia">🇯🇵 Asia (Yokohama / Tokio)</option>
+          </select>
+        </div>
+
+        <div className={`p-4 rounded-xl border ${isDark ? 'bg-stone-800/60 border-stone-700' : 'bg-stone-50 border-stone-200'}`}>
+          <label className="text-xs font-bold uppercase text-stone-500 block mb-1">Sacos de 69kg</label>
+          <input 
+            type="number" 
+            min="1" 
+            value={bagsCount} 
+            onChange={(e) => setBagsCount(Number(e.target.value))}
+            className={`w-full p-2.5 rounded-lg border text-sm font-bold ${isDark ? 'bg-stone-900 border-stone-700 text-white' : 'bg-white border-stone-300 text-stone-900'}`}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+        <div className={`p-4 rounded-xl border ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
+          <p className="text-[11px] font-bold text-stone-400 uppercase">Café Oro FOB Corinto</p>
+          <p className="text-xl font-black font-mono mt-1 text-stone-900 dark:text-white">{formatPrice(greenCoffeeTotalUSD, currency)}</p>
+        </div>
+        <div className={`p-4 rounded-xl border ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
+          <p className="text-[11px] font-bold text-stone-400 uppercase">Flete & CETREX</p>
+          <p className="text-xl font-black font-mono mt-1 text-stone-900 dark:text-white">{formatPrice(estimatedFreightUSD + exportDocumentationUSD, currency)}</p>
+        </div>
+        <div className={`p-4 rounded-xl border ${isDark ? 'bg-emerald-950/30 border-emerald-800/60' : 'bg-emerald-50 border-emerald-200'}`}>
+          <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase">Landed Cost Total</p>
+          <p className="text-xl font-black font-mono mt-1 text-emerald-700 dark:text-emerald-300">{formatPrice(totalLandedUSD, currency)}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const BuyerInquiryModal = ({ isOpen, onClose, batch, farmer, currentUser, currency, isDark, onSubmit }) => {
+  const [inquiryType, setInquiryType] = useState('sample');
+  const [kgAmount, setKgAmount] = useState(69);
+  const [buyerName, setBuyerName] = useState(currentUser?.name || '');
+  const [roasteryName, setRoasteryName] = useState(currentUser?.companyName || '');
+  const [country, setCountry] = useState(currentUser?.country || 'Alemania');
+  const [email, setEmail] = useState(currentUser?.email || '');
+
+  useEffect(() => {
+    if (currentUser) {
+      setBuyerName(currentUser.name || '');
+      setRoasteryName(currentUser.companyName || '');
+      setCountry(currentUser.country || 'Alemania');
+      setEmail(currentUser.email || '');
+    }
+  }, [currentUser, isOpen]);
+
+  if (!isOpen || !batch) return null;
+
+  const unitPriceUSD = batch.priceUSD || 9.50;
+  const totalCalculatedUSD = inquiryType === 'sample' ? 35 : (kgAmount * unitPriceUSD);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit({
+      id: `req-${Date.now()}`,
+      batchCode: batch.code,
+      batchVariety: batch.variety,
+      farmerId: batch.farmerId,
+      farmerName: farmer?.name || 'Productor Nica',
+      buyerId: currentUser?.id || 'guest',
+      buyerName,
+      roasteryName,
+      country,
+      email,
+      inquiryType,
+      kgAmount: inquiryType === 'sample' ? 0.5 : kgAmount,
+      totalUSD: totalCalculatedUSD,
+      currency,
+      date: new Date().toISOString().split('T')[0],
+      status: "Oferta Recibida por la Finca"
+    });
+    onClose();
+  };
+
+  const inputClass = `w-full p-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm ${isDark ? 'bg-stone-800 border-stone-700 text-white' : 'bg-stone-50 border-stone-200 text-stone-900'}`;
+  const labelClass = `block text-xs font-semibold uppercase tracking-wider mb-1 ${isDark ? 'text-stone-400' : 'text-stone-600'}`;
+
+  return (
+    <ModalWrapper isDark={isDark} onClose={onClose} title={`Oferta Comercial • ${batch.code}`}>
+      <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[78vh] overflow-y-auto">
+        <div className="grid grid-cols-2 gap-3">
+          <button 
+            type="button" 
+            onClick={() => setInquiryType('sample')} 
+            className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${inquiryType === 'sample' ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-600'}`}
+          >
+            Pedir Muestra (500g)
+          </button>
+          <button 
+            type="button" 
+            onClick={() => setInquiryType('reserve')} 
+            className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${inquiryType === 'reserve' ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-600'}`}
+          >
+            Reservar Lote Completo
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Comprador</label>
+            <input required type="text" className={inputClass} value={buyerName} onChange={e => setBuyerName(e.target.value)} />
+          </div>
+          <div>
+            <label className={labelClass}>Empresa / Tostaduría</label>
+            <input required type="text" className={inputClass} value={roasteryName} onChange={e => setRoasteryName(e.target.value)} />
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+          <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Total Transacción Directa:</span>
+          <span className="text-base font-black font-mono text-emerald-600 dark:text-emerald-400">{formatPrice(totalCalculatedUSD, currency)}</span>
+        </div>
+
+        <div className="flex gap-3 pt-2">
+          <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-xs font-semibold border">Cancelar</button>
+          <button type="submit" className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
+            <Send size={15}/> Enviar Oferta a Finca
+          </button>
+        </div>
+      </form>
+    </ModalWrapper>
+  );
+};
+
+const BatchFormModal = ({ isOpen, onClose, onSave, batchToEdit, producers, currentUser, isDark }) => {
+  const [formData, setFormData] = useState({ 
+    code: '', 
+    farmerId: '', 
+    variety: 'Maracaturra Gigante', 
+    process: 'Honey Amarillo', 
+    score: 87.5, 
+    weight: 460, 
+    priceUSD: 9.50,
+    productionCostPerKgUSD: 2.80,
+    status: 'En Finca (Secado en Camas)', 
+    harvestDate: new Date().toISOString().split('T')[0],
+    tastingNotes: []
+  });
+  const [tastingInput, setTastingInput] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      if (batchToEdit) {
+        setFormData({ ...batchToEdit });
+        setTastingInput(batchToEdit.tastingNotes ? batchToEdit.tastingNotes.join(', ') : '');
+      } else {
+        const defaultFarmerId = currentUser?.role === 'producer' ? currentUser.id : (producers[0]?.id || '');
+        setFormData({ 
+          code: `NIC-JIN-26-${Math.floor(10 + Math.random()*90)}`, 
+          farmerId: defaultFarmerId, 
+          variety: 'Maracaturra Gigante', 
+          process: 'Honey Amarillo', 
+          score: 87.5, 
+          weight: 460, 
+          priceUSD: 9.50,
+          productionCostPerKgUSD: 2.80,
+          status: 'En Finca (Secado en Camas)', 
+          harvestDate: new Date().toISOString().split('T')[0],
+          tastingNotes: ['Miel de abeja', 'Jazmín', 'Cítrico dulce']
+        });
+        setTastingInput('Miel de abeja, Jazmín, Cítrico dulce');
+      }
+    }
+  }, [isOpen, batchToEdit, producers, currentUser]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e) => { 
+    e.preventDefault(); 
+    const notes = tastingInput.split(',').map(s => s.trim()).filter(Boolean);
+    onSave({ ...formData, tastingNotes: notes }); 
+    onClose(); 
+  };
+
+  const inputClass = `w-full p-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm ${isDark ? 'bg-stone-800 border-stone-700 text-white' : 'bg-stone-50 border-stone-200 text-stone-800'}`;
+  const labelClass = `block text-xs font-semibold uppercase tracking-wider mb-1 ${isDark ? 'text-stone-400' : 'text-stone-600'}`;
+
+  return (
+    <ModalWrapper isDark={isDark} onClose={onClose} title={batchToEdit ? 'Editar Lote Comercial' : 'Registrar Nuevo Lote de Venta Directa'}>
+      <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Código de Lote</label>
+            <input required type="text" className={inputClass} value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} />
+          </div>
+          <div>
+            <label className={labelClass}>Fecha de Corte</label>
+            <input required type="date" className={inputClass} value={formData.harvestDate} onChange={e => setFormData({...formData, harvestDate: e.target.value})} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Variedad</label>
+            <input required type="text" className={inputClass} value={formData.variety} onChange={e => setFormData({...formData, variety: e.target.value})} />
+          </div>
+          <div>
+            <label className={labelClass}>Proceso</label>
+            <select className={inputClass} value={formData.process} onChange={e => setFormData({...formData, process: e.target.value})}>
+              <option value="Lavado Tradicional">Lavado Tradicional</option>
+              <option value="Honey Amarillo">Honey Amarillo</option>
+              <option value="Natural Lento en Camas">Natural Lento en Camas</option>
+              <option value="Anaeróbico 72h">Anaeróbico 72h</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className={labelClass}>Peso (Kg)</label>
+            <input required type="number" min="1" className={inputClass} value={formData.weight} onChange={e => setFormData({...formData, weight: Number(e.target.value)})} />
+          </div>
+          <div>
+            <label className={labelClass}>Puntaje SCA</label>
+            <input required type="number" step="0.25" min="70" max="100" className={inputClass} value={formData.score} onChange={e => setFormData({...formData, score: Number(e.target.value)})} />
+          </div>
+          <div>
+            <label className={labelClass}>Precio Real ($/Kg)</label>
+            <input required type="number" step="0.1" min="1" className={inputClass} value={formData.priceUSD} onChange={e => setFormData({...formData, priceUSD: Number(e.target.value)})} />
+          </div>
+        </div>
+
+        <div>
+          <label className={labelClass}>Notas Sensoriales en Taza</label>
+          <input type="text" className={inputClass} value={tastingInput} onChange={e => setTastingInput(e.target.value)} />
+        </div>
+
+        <div className="flex gap-3 pt-2">
+          <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-lg border text-xs font-semibold">Cancelar</button>
+          <button type="submit" className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5"><Save size={15}/> Guardar Lote</button>
+        </div>
+      </form>
+    </ModalWrapper>
+  );
+};
+
+export default function CoffeeTraceabilityApp() {
+  const [isDark, setIsDark] = useState(false);
+  const [language, setLanguage] = useState('es');
+  const [currency, setCurrency] = useState('USD');
+  
+  const [allUsers, setAllUsers] = useState(DEMO_USERS);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authPortalRole, setAuthPortalRole] = useState('producer');
+  const [activeTab, setActiveTab] = useState('marketplace');
+  const [toasts, setToasts] = useState([]);
+  
+  const [batches, setBatches] = useState(INITIAL_BATCHES);
+  const [inquiries, setInquiries] = useState(INITIAL_INQUIRIES);
+  const [trainingRequests, setTrainingRequests] = useState(INITIAL_TRAINING_REQUESTS);
+  
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [isInquiryModalOpen, setIsInquiryModalOpen] = useState(false);
+  const [selectedBatchForInquiry, setSelectedBatchForInquiry] = useState(null);
+  const [editingBatch, setEditingBatch] = useState(null);
+  const [selectedTraceabilityBatch, setSelectedTraceabilityBatch] = useState(INITIAL_BATCHES[0]);
+
+  const [batchSearch, setBatchSearch] = useState('');
+  const [marketplaceSearch, setMarketplaceSearch] = useState('');
+
+  const t = TRANSLATIONS[language] || TRANSLATIONS.es;
+
+  const producers = useMemo(() => {
+    return allUsers.filter(u => u.role === 'producer');
+  }, [allUsers]);
+
+  const handleRoleSwitch = (newRole) => {
+    setAuthPortalRole(newRole);
+    if (!currentUser) {
+      if (newRole === 'producer') {
+        setActiveTab('institutional');
+      } else {
+        setActiveTab('marketplace');
+      }
+      return;
+    }
+    const match = allUsers.find(u => u.role === newRole);
+    if (match) {
+      setCurrentUser(match);
+      if (newRole === 'producer') {
+        setActiveTab('dashboard');
+      } else {
+        setActiveTab('marketplace');
+      }
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setActiveTab('marketplace');
+    addToast(language === 'es' ? "Sesión cerrada correctamente" : "Logged out successfully", 'success');
+  };
+
+  const openAuthForRole = (role) => {
+    setAuthPortalRole(role);
+    setIsAuthModalOpen(true);
+  };
+
+  const addToast = (message, type = 'success') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+  };
+
+  const removeToast = (id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleLoginSuccess = (user, isNew = false) => {
+    if (isNew) {
+      setAllUsers(prev => [user, ...prev]);
+    }
+    setCurrentUser(user);
+    setAuthPortalRole(user.role);
+    if (user.preferredCurrency) {
+      setCurrency(user.preferredCurrency);
+    }
+    if (user.role === 'producer') {
+      setActiveTab('dashboard');
+    } else {
+      setActiveTab('marketplace');
+    }
+    addToast(isNew ? t.authRegisterSuccess : t.authLoginSuccess);
+  };
+
+  const handleUpdateProfile = (updatedData) => {
+    setCurrentUser(updatedData);
+    setAllUsers(allUsers.map(u => u.id === updatedData.id ? updatedData : u));
+    addToast(t.farmerSavedToast);
+  };
+
+  const handleSaveBatch = (batchData) => {
+    if (editingBatch) {
+      setBatches(batches.map(b => b.id === batchData.id ? batchData : b));
+      if (selectedTraceabilityBatch?.id === batchData.id) setSelectedTraceabilityBatch(batchData);
+      addToast(t.lotSavedToast);
+    } else {
+      const newBatch = { ...batchData, id: `b${Date.now()}` };
+      setBatches([newBatch, ...batches]);
+      addToast(t.lotSavedToast);
+    }
+  };
+
+  const handleDeleteBatch = (id) => {
+    setBatches(batches.filter(b => b.id !== id));
+    if (selectedTraceabilityBatch?.id === id) {
+      const remaining = batches.filter(b => b.id !== id);
+      setSelectedTraceabilityBatch(remaining[0] || null);
+    }
+    addToast(t.lotDeletedToast);
+  };
+
+  const handleCreateInquiry = (inquiryData) => {
+    setInquiries([inquiryData, ...inquiries]);
+    addToast(t.orderSentToast);
+  };
+
+  const handleRequestTraining = (newRequest) => {
+    setTrainingRequests([newRequest, ...trainingRequests]);
+    addToast(t.trainingRequestedToast || "¡Solicitud técnica enviada!");
+  };
+
+  const openInquiryForBatch = (batch) => {
+    if (!currentUser) {
+      addToast(language === 'es' ? "Inicia sesión como comprador para solicitar muestras" : "Please sign in as a buyer to request samples", 'info');
+      openAuthForRole('buyer');
+      return;
+    }
+    setSelectedBatchForInquiry(batch);
+    setIsInquiryModalOpen(true);
+  };
+
+  const viewTraceability = (batch) => {
+    setSelectedTraceabilityBatch(batch);
+    setActiveTab('traceability');
+  };
+
+  const totalKg = batches.reduce((acc, b) => acc + (Number(b.weight) || 0), 0);
+  const totalQuintales = (totalKg / KG_PER_QUINTAL).toFixed(1);
+  
+  const totalGrossIncomeUSD = batches.reduce((acc, b) => acc + ((Number(b.weight) || 0) * (Number(b.priceUSD) || 9.50)), 0);
+  const totalProductionCostsUSD = batches.reduce((acc, b) => acc + ((Number(b.weight) || 0) * (Number(b.productionCostPerKgUSD) || 2.80)), 0);
+  const totalNetProfitUSD = totalGrossIncomeUSD - totalProductionCostsUSD;
+
+  const totalCommodityBaseUSD = totalKg * NY_BENCHMARK_PRICE_USD_KG;
+  const totalRealValuePremiumUSD = Math.max(0, totalGrossIncomeUSD - totalCommodityBaseUSD);
+
+  const avgScore = batches.length 
+    ? (batches.reduce((acc, b) => acc + (Number(b.score) || 0), 0) / batches.length).toFixed(2) 
+    : '0.00';
+
+  const processData = useMemo(() => {
+    const counts = batches.reduce((acc, b) => {
+      acc[b.process] = (acc[b.process] || 0) + (Number(b.weight) || 0);
+      return acc;
+    }, {});
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [batches]);
+
+  const profitByVarietyData = useMemo(() => {
+    const counts = batches.reduce((acc, b) => {
+      const gross = (Number(b.weight) || 0) * (Number(b.priceUSD) || 9.50);
+      const cost = (Number(b.weight) || 0) * (Number(b.productionCostPerKgUSD) || 2.80);
+      const profitUSD = Math.max(0, gross - cost);
+      const converted = formatNumberCurrency(profitUSD, currency);
+      acc[b.variety] = (acc[b.variety] || 0) + converted;
+      return acc;
+    }, {});
+    return Object.entries(counts).map(([name, value]) => ({ name, value: Math.round(value) }));
+  }, [batches, currency]);
+
+  const filteredBatches = useMemo(() => {
+    return batches.filter(b => {
+      const farmer = producers.find(f => f.id === b.farmerId);
+      const query = batchSearch.toLowerCase();
+      return b.code.toLowerCase().includes(query) ||
+        b.variety.toLowerCase().includes(query) ||
+        (farmer?.name || '').toLowerCase().includes(query) ||
+        (farmer?.farmName || '').toLowerCase().includes(query);
+    });
+  }, [batches, producers, batchSearch]);
+
+  const marketplaceBatches = useMemo(() => {
+    return batches.filter(b => {
+      const farmer = producers.find(f => f.id === b.farmerId);
+      const query = marketplaceSearch.toLowerCase();
+      return b.code.toLowerCase().includes(query) ||
+        b.variety.toLowerCase().includes(query) ||
+        (farmer?.name || '').toLowerCase().includes(query) ||
+        (farmer?.farmName || '').toLowerCase().includes(query) ||
+        b.process.toLowerCase().includes(query);
+    });
+  }, [batches, producers, marketplaceSearch]);
+
+  const COLORS = ['#059669', '#10b981', '#15803d', '#16a34a', '#0d9488', '#84cc16'];
+
+  const navItems = useMemo(() => {
+    if (!currentUser) {
+      return [
+        { id: 'marketplace', icon: ShoppingCart, label: language === 'es' ? 'Mercado de Cafés' : 'Specialty Market' },
+        { id: 'nyExchange', icon: TrendingUp, label: t.navNYExchange },
+        { id: 'terroirs', icon: Compass, label: t.navTerroirs },
+        { id: 'institutional', icon: Truck, label: t.navInstitutional },
+        { id: 'traceability', icon: QrCode, label: t.navTraceability },
+        { id: 'farmers', icon: Users, label: t.navFarmers }
+      ];
+    }
+    if (currentUser.role === 'buyer') {
+      return [
+        { id: 'marketplace', icon: ShoppingCart, label: t.navMarketplace },
+        { id: 'nyExchange', icon: TrendingUp, label: t.navNYExchange },
+        { id: 'cuppingLab', icon: Award, label: t.navCuppingLab },
+        { id: 'exportCalc', icon: Truck, label: t.navExportCalc },
+        { id: 'traceability', icon: QrCode, label: t.navTraceability },
+        { id: 'terroirs', icon: Compass, label: t.navTerroirs },
+        { id: 'institutional', icon: Truck, label: t.navInstitutional },
+        { id: 'buyerOrders', icon: Inbox, label: t.navBuyerOrders },
+        { id: 'myProfile', icon: User, label: t.navBuyerProfile }
+      ];
+    } else {
+      return [
+        { id: 'dashboard', icon: LayoutDashboard, label: t.navProducerDashboard },
+        { id: 'nyExchange', icon: TrendingUp, label: t.navNYExchange },
+        { id: 'batches', icon: Package, label: t.navBatches },
+        { id: 'myProfile', icon: Leaf, label: t.navMyProfile },
+        { id: 'costCalc', icon: Calculator, label: t.navCostCalculator },
+        { id: 'training', icon: GraduationCap, label: t.navTraining },
+        { id: 'institutional', icon: Truck, label: t.navInstitutional },
+        { id: 'producerOrders', icon: Inbox, label: t.navProducerOrders },
+        { id: 'farmers', icon: Users, label: t.navFarmers },
+        { id: 'traceability', icon: QrCode, label: t.navTraceability }
+      ];
+    }
+  }, [currentUser, language, t]);
+
+  return (
+    <div className={`flex h-screen font-sans transition-colors duration-300 ${isDark ? 'bg-stone-950 text-stone-100' : 'bg-stone-100/70 text-stone-800'}`}>
+      {/* SIDEBAR */}
+      <aside className={`w-20 md:w-64 transition-all duration-300 flex flex-col fixed h-full z-20 border-r shadow-sm ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-100/70'}`}>
+        <div className="p-5 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-800 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-950/20">
+              <Coffee size={22} />
+            </div>
+            <div className="hidden md:block">
+              <h1 className={`text-base font-black tracking-tight leading-none ${isDark ? 'text-white' : 'text-stone-900'}`}>
+                Nica<span className="text-emerald-600">Trade</span>
+              </h1>
+              <p className="text-[10px] font-bold tracking-wider uppercase text-emerald-600">{t.appSubtitle}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-3 pt-4">
+          <div className={`p-1 rounded-xl flex border ${isDark ? 'bg-stone-950 border-stone-800' : 'bg-stone-100 border-stone-200'}`}>
+            <button
+              onClick={() => handleRoleSwitch('buyer')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${(!currentUser && authPortalRole === 'buyer') || (currentUser?.role === 'buyer') ? 'bg-emerald-600 text-white shadow-sm' : 'text-stone-500'}`}
+            >
+              <ShoppingCart size={13} />
+              <span className="hidden md:inline">{t.roleBuyer}</span>
+            </button>
+            <button
+              onClick={() => handleRoleSwitch('producer')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${(!currentUser && authPortalRole === 'producer') || (currentUser?.role === 'producer') ? 'bg-emerald-600 text-white shadow-sm' : 'text-stone-500'}`}
+            >
+              <Building2 size={13} />
+              <span className="hidden md:inline">{t.roleProducer}</span>
+            </button>
           </div>
         </div>
         
-        <nav className="flex-1 px-4 py-6 space-y-1">
-          {[{id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'}, {id: 'inventory', icon: Package, label: 'Inventario'}, {id: 'requisitions', icon: ShoppingCart, label: 'Requisiciones'}, {id: 'quotations', icon: FileText, label: 'Cotizaciones'}, {id: 'suppliers', icon: Truck, label: 'Proveedores'}, {id: 'history', icon: History, label: 'Historial'}, {id: 'settings', icon: Settings, label: 'Configuración'}].map(item => (
-              <button 
-                key={item.id} 
-                onClick={() => {
-                    if (item.id === 'settings' && !isAdmin) {
-                        addToast("Acceso restringido. Ingrese PIN.", "warning");
-                        setIsLoginModalOpen(true);
-                    } else {
-                        setActiveTab(item.id);
-                    }
-                }} 
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden ${activeTab === item.id ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20' : (isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-500 hover:bg-white hover:shadow-sm hover:text-emerald-600')}`}
-              >
-                <item.icon size={20} className={`${activeTab === item.id ? 'animate-pulse' : ''}`}/>
-                <span className={`font-medium ${!sidebarOpen && 'hidden md:inline'}`}>{item.label}</span>
-                {item.id === 'settings' && !isAdmin && <Lock size={14} className="ml-auto opacity-50" />}
-                {activeTab === item.id && <div className="absolute right-0 top-0 h-full w-1 bg-white/20"></div>}
-              </button>
+        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
+          {navItems.map(item => (
+            <button 
+              key={item.id} 
+              onClick={() => setActiveTab(item.id)} 
+              className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${activeTab === item.id ? 'bg-emerald-600 text-white font-semibold shadow-md' : 'text-stone-600 hover:bg-emerald-50 dark:text-stone-400 dark:hover:bg-stone-800'}`}
+            >
+              <item.icon size={19} className="shrink-0" />
+              <span className="hidden md:inline">{item.label}</span>
+            </button>
           ))}
         </nav>
 
-        <div className={`p-4 border-t space-y-4 ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
-           <button 
-             onClick={toggleTheme} 
-             className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-colors ${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-           >
-             {isDarkMode ? <><Sun size={14}/> Modo Claro</> : <><Moon size={14}/> Modo Oscuro</>}
-           </button>
-
-          {sidebarOpen && (
-            <div className={`flex items-center justify-between text-xs px-2 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-              <div className="flex items-center gap-2 group cursor-pointer" onClick={handleChangeDeviceName} title="Clic para cambiar identidad">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
-                <div className="flex flex-col">
-                  <span className={`font-bold truncate max-w-[100px] ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>{userProfile ? userProfile.name : 'Usuario'}</span>
-                  <span>En línea</span>
-                </div>
-                <Pencil size={10} className="opacity-0 group-hover:opacity-100 transition-opacity"/>
-              </div>
-            </div>
+        <div className={`p-4 border-t space-y-2 ${isDark ? 'border-stone-800' : 'border-stone-200'}`}>
+          {currentUser ? (
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-colors"
+            >
+              <LogOut size={15} />
+              <span className="hidden md:inline">{language === 'es' ? 'Cerrar Sesión' : 'Log Out'}</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => openAuthForRole(authPortalRole)}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-sm"
+            >
+              <LogIn size={15} />
+              <span className="hidden md:inline">{language === 'es' ? 'Iniciar Sesión' : 'Sign In'}</span>
+            </button>
           )}
-          
-          <div className={`flex items-center justify-between p-2 rounded-xl border ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-              <div className="flex items-center gap-2 text-xs">
-                <div className={`p-1.5 rounded-lg ${isAdmin ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-500'}`}>
-                  {isAdmin ? <Shield size={14}/> : <Eye size={14}/>}
-                </div>
-                <span className={`font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{isAdmin ? 'Admin' : 'Visor'}</span>
-              </div>
-              <button 
-                onClick={() => isAdmin ? setIsAdmin(false) : setIsLoginModalOpen(true)}
-                className={`p-1.5 rounded-lg transition-all ${isDarkMode ? 'hover:bg-slate-700 text-slate-400 hover:text-white' : 'hover:bg-white hover:shadow-sm text-slate-400 hover:text-emerald-600'}`}
-                title={isAdmin ? "Cerrar sesión" : "Ingresar como admin"}
-              >
-                {isAdmin ? <Unlock size={14}/> : <Lock size={14}/>}
-              </button>
-            </div>
-             <div className={`text-[10px] text-center mt-2 flex items-center justify-center gap-1 ${isDarkMode ? 'text-slate-600' : 'text-slate-400'}`}>
-               <Code size={10} /> Desarrollado por Jeffry Reyes
-             </div>
+
+          <div className="hidden md:flex items-center justify-between text-xs text-stone-500 pt-1">
+            <span className="font-semibold">{language === 'es' ? 'Tema visual' : 'Theme'}</span>
+            <button onClick={() => setIsDark(!isDark)} className="p-1.5 rounded-lg text-emerald-600">
+              {isDark ? <Sun size={16}/> : <Moon size={16}/>}
+            </button>
+          </div>
         </div>
       </aside>
 
-      <main className={`flex-1 overflow-y-auto p-4 md:p-8 transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'ml-20'}`}>
-        <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+      {}
+      {/* MAIN CONTENT */}
+      <main className="flex-1 overflow-y-auto p-4 md:p-8 ml-20 md:ml-64 transition-all duration-300">
+        {/* VIEW HEADER TITLE */}
+        <header className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-4">
           <div>
-            <h2 className={`text-2xl font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{activeTab === 'dashboard' ? 'Visión General' : activeTab === 'inventory' ? 'Inventario' : activeTab === 'requisitions' ? 'Requisiciones y Pedidos' : activeTab === 'quotations' ? 'Solicitud Cotización' : activeTab === 'suppliers' ? 'Proveedores' : activeTab === 'settings' ? 'Configuración' : 'Historial'}</h2>
-            <div className="flex items-center gap-2 text-sm mt-1 font-medium"><Wifi size={14} className="text-emerald-500" /><span className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}>Conexión estable • {isAdmin ? 'Edición Habilitada' : 'Solo Lectura'}</span></div>
+            <div className="flex items-center gap-2">
+              <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${!currentUser ? 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300' : currentUser.role === 'buyer' ? 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'}`}>
+                {!currentUser ? (language === 'es' ? 'Modo Explorador (Sin Sesión)' : 'Explorer Mode (Guest)') : currentUser.role === 'buyer' ? t.buyerType : t.producerType}
+              </span>
+              <span className="text-xs text-stone-400 font-medium">• Nicaragua Specialty Direct Trade</span>
+            </div>
+            <h2 className={`text-2xl md:text-3xl font-black tracking-tight mt-1 ${isDark ? 'text-white' : 'text-stone-900'}`}>
+              {activeTab === 'marketplace' ? t.marketplaceTitle :
+               activeTab === 'nyExchange' ? t.navNYExchange :
+               activeTab === 'dashboard' ? t.navProducerDashboard : 
+               activeTab === 'batches' ? t.navBatches : 
+               activeTab === 'training' ? t.navTraining :
+               activeTab === 'myProfile' ? (currentUser?.role === 'producer' ? t.navMyProfile : t.navBuyerProfile) :
+               activeTab === 'costCalc' ? t.navCostCalculator :
+               activeTab === 'cuppingLab' ? t.navCuppingLab :
+               activeTab === 'exportCalc' ? t.navExportCalc :
+               activeTab === 'terroirs' ? t.navTerroirs :
+               activeTab === 'institutional' ? t.navInstitutional :
+               activeTab === 'farmers' ? t.producerDirectory : 
+               activeTab === 'buyerOrders' || activeTab === 'producerOrders' ? 'Gestión de Ofertas y Contratos' : t.navTraceability}
+            </h2>
           </div>
-          <button onClick={() => setIsConnectedUsersModalOpen(true)} className={`group flex items-center gap-4 text-sm font-medium px-4 py-2 rounded-full border shadow-sm transition-all hover:scale-105 ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-200'}`}>
-              <div className="flex items-center gap-2"><Users size={18} className="text-blue-500 group-hover:animate-bounce" /><span className="text-blue-600 font-bold">{onlineUsersList.length}</span><span>Conectados</span></div>
-              <div className={`hidden md:flex items-center gap-2 border-l pl-4 text-xs ${isDarkMode ? 'border-slate-600' : 'border-slate-200'}`}>
-                {userProfile && userProfile.type === 'Móvil' ? <Smartphone size={14} className="text-slate-400"/> : <Laptop size={14} className="text-slate-400"/>}
-                <span className="font-bold">{myDeviceName}</span>
-                <span className="text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold">(Tú)</span>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {currentUser ? (
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl border shadow-sm ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-200/80'}`}>
+                <img 
+                  src={currentUser.avatar || "https://images.unsplash.com/photo-1595858600863-7182ecf7b494?auto=format&fit=crop&w=300&q=80"} 
+                  alt={currentUser.name} 
+                  className="w-7 h-7 rounded-xl object-cover border border-emerald-500 shrink-0" 
+                />
+                <div className="hidden sm:block text-left">
+                  <p className="text-xs font-bold text-stone-900 dark:text-white leading-tight truncate max-w-[120px]">
+                    {currentUser.name}
+                  </p>
+                  <p className="text-[10px] text-emerald-600 font-semibold truncate max-w-[120px]">
+                    {currentUser.role === 'producer' ? currentUser.farmName : currentUser.companyName}
+                  </p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="p-1 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors ml-1"
+                  title={language === 'es' ? "Cerrar Sesión" : "Log Out"}
+                >
+                  <LogOut size={14} />
+                </button>
               </div>
-          </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openAuthForRole(authPortalRole)}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+                >
+                  <LogIn size={14} /> {language === 'es' ? 'Iniciar Sesión' : 'Sign In'}
+                </button>
+                <button
+                  onClick={() => openAuthForRole(authPortalRole)}
+                  className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+                >
+                  <UserPlus size={14} /> {authPortalRole === 'producer' ? (language === 'es' ? 'Registrar Mi Finca' : 'Register Farm') : (language === 'es' ? 'Registrarme' : 'Sign Up')}
+                </button>
+              </div>
+            )}
+
+            <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border shadow-sm ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+              <Globe size={15} className="text-emerald-600" />
+              <select 
+                value={language} 
+                onChange={(e) => setLanguage(e.target.value)}
+                className={`text-xs font-bold bg-transparent focus:outline-none cursor-pointer ${isDark ? 'text-white' : 'text-stone-800'}`}
+              >
+                <option value="es" className={isDark ? 'bg-stone-900 text-white' : 'bg-white text-stone-900'}>🇪🇸 ES</option>
+                <option value="en" className={isDark ? 'bg-stone-900 text-white' : 'bg-white text-stone-900'}>🇺🇸 EN</option>
+              </select>
+            </div>
+
+            <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border shadow-sm ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+              <DollarSign size={15} className="text-emerald-600" />
+              <select 
+                value={currency} 
+                onChange={(e) => setCurrency(e.target.value)}
+                className={`text-xs font-bold bg-transparent focus:outline-none cursor-pointer ${isDark ? 'text-white' : 'text-stone-800'}`}
+              >
+                <option value="USD" className={isDark ? 'bg-stone-900 text-white' : 'bg-white text-stone-900'}>USD ($)</option>
+                <option value="EUR" className={isDark ? 'bg-stone-900 text-white' : 'bg-white text-stone-900'}>EUR (€)</option>
+                <option value="NIO" className={isDark ? 'bg-stone-900 text-white' : 'bg-white text-stone-900'}>NIO (C$)</option>
+              </select>
+            </div>
+          </div>
         </header>
 
-        {activeTab === 'dashboard' && (
-          <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card isDarkMode={isDarkMode} title="Total Productos" value={inventoryData.length} icon={Package} color="blue" />
-              <Card isDarkMode={isDarkMode} title="Stock Total" value={inventoryData.reduce((acc, item) => acc + item.stock, 0)} icon={BarChartIcon} color="emerald" />
-              <Card isDarkMode={isDarkMode} title="Valor (Sin IVA)" value={`C$${totalValue.toLocaleString('en-US', {minimumFractionDigits: 2})}`} icon={DollarSign} color="indigo" />
-              <Card isDarkMode={isDarkMode} title="Agotados" value={inventoryData.filter(i => i.stock <= 0).length} icon={AlertTriangle} color="red" trend="down" />
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <div className={`p-6 rounded-2xl shadow-sm border h-80 flex flex-col transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
-                  <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Stock por Categoría</h3>
-                  <div className="flex-1 w-full min-h-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={Object.entries(inventoryData.reduce((acc, i) => { const c = i.categoria.includes('CHUMAZERAS')?'CHUMAZERAS':i.categoria; acc[c] = (acc[c]||0)+i.stock; return acc; }, {})).map(([name, value]) => ({name, value})).sort((a,b)=>b.value-a.value).slice(0,7)} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
-                        <XAxis type="number" hide />
-                        <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11, fill: isDarkMode ? '#94a3b8' : '#64748b'}} />
-                        <Tooltip contentStyle={{backgroundColor: isDarkMode ? '#1e293b' : '#fff', borderColor: isDarkMode ? '#334155' : '#e2e8f0', color: isDarkMode ? '#fff' : '#000'}} cursor={{fill: isDarkMode ? '#334155' : '#f1f5f9'}} />
-                        <Bar dataKey="value" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20}>
-                          {
-                            Object.entries(inventoryData.reduce((acc, i) => { const c = i.categoria.includes('CHUMAZERAS')?'CHUMAZERAS':i.categoria; acc[c] = (acc[c]||0)+i.stock; return acc; }, {})).map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={`hsl(${210 + (index * 20)}, 80%, ${isDarkMode ? '60%' : '50%'})`} />
-                            ))
-                          }
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+        {/* 1. MARKETPLACE */}
+        {activeTab === 'marketplace' && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {!currentUser && (
+              <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 ${isDark ? 'bg-emerald-950/30 border-emerald-800' : 'bg-emerald-50 border-emerald-200'}`}>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-600 text-white rounded-xl shrink-0">
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-stone-900 dark:text-white uppercase tracking-wider">
+                      {language === 'es' ? 'Venta Directa de Cafés de Especialidad de Nicaragua' : 'Direct Specialty Coffee Trade from Nicaragua'}
+                    </h4>
+                    <p className="text-xs text-stone-600 dark:text-stone-400">
+                      {language === 'es' ? 'Compra directamente a productores al precio real de origen sin intermediarios.' : 'Buy directly from producers at genuine farmgate prices.'}
+                    </p>
                   </div>
                 </div>
-                <div className={`p-6 rounded-2xl shadow-sm border h-80 flex flex-col transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
-                  <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><Activity size={20} className="text-purple-500"/> Análisis de Rotación (Top 5 Salidas)</h3>
-                  <div className="flex-1 w-full min-h-0">
-                      {rotationData.length > 0 ? (
-                       <ResponsiveContainer width="100%" height="100%">
-                         <BarChart data={rotationData} layout="vertical" margin={{ left: 40 }}>
-                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={isDarkMode ? '#334155' : '#e2e8f0'} />
-                           <XAxis type="number" hide />
-                           <YAxis dataKey="name" type="category" width={150} tick={{fontSize: 11, fill: isDarkMode ? '#94a3b8' : '#64748b'}} />
-                           <Tooltip contentStyle={{backgroundColor: isDarkMode ? '#1e293b' : '#fff', borderColor: isDarkMode ? '#334155' : '#e2e8f0', color: isDarkMode ? '#fff' : '#000'}} cursor={{fill: isDarkMode ? '#334155' : '#f1f5f9'}} />
-                           <Bar dataKey="value" fill="#8B5CF6" radius={[0, 4, 4, 0]} barSize={20} name="Unidades" />
-                         </BarChart>
-                       </ResponsiveContainer>
-                      ) : (
-                        <div className={`h-full flex items-center justify-center italic ${isDarkMode ? 'text-slate-600' : 'text-slate-300'}`}>No hay datos de salidas aún.</div>
-                      )}
-                  </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => openAuthForRole('buyer')}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all"
+                  >
+                    {language === 'es' ? 'Iniciar Sesión' : 'Sign In'}
+                  </button>
+                  <button
+                    onClick={() => openAuthForRole('buyer')}
+                    className="px-3 py-1.5 bg-white dark:bg-stone-800 hover:bg-stone-100 text-stone-800 dark:text-stone-200 text-xs font-bold rounded-xl border border-stone-300 dark:border-stone-700 transition-all"
+                  >
+                    {language === 'es' ? 'Registrarme' : 'Sign Up'}
+                  </button>
                 </div>
               </div>
-              <div className={`p-6 rounded-2xl shadow-sm border h-auto overflow-y-auto transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
-                <h3 className={`text-lg font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Stock Bajo</h3>
-                <div className="space-y-2">
-                  {inventoryData.filter(i => i.stock <= 5).sort((a,b)=>a.stock-b.stock).map((item, idx) => (
-                    <div key={idx} className={`flex justify-between items-center p-3 rounded-lg border transition-colors ${isDarkMode ? 'bg-slate-900/50 border-slate-700 hover:bg-slate-700' : 'bg-slate-50 border-slate-100 hover:bg-white hover:shadow-sm'}`}>
-                      <div className="truncate pr-2"><p className={`text-sm font-medium ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>{item.material}</p><p className="text-xs text-slate-400">{item.codigo}</p></div>
-                      <Badge type={item.stock <= 0 ? "danger" : "warning"}>{item.stock}</Badge>
+            )}
+
+            <div className={`p-4 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-4 ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-100/70'}`}>
+              <div className="relative flex-1 w-full max-w-md">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                <input 
+                  type="text" 
+                  placeholder={t.searchLotPlaceholder} 
+                  value={marketplaceSearch}
+                  onChange={(e) => setMarketplaceSearch(e.target.value)}
+                  className={`w-full pl-10 pr-4 py-2 text-sm rounded-xl border focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isDark ? 'bg-stone-800 border-stone-700 text-white' : 'bg-stone-50 border-stone-200 text-stone-900'}`}
+                />
+              </div>
+              {!currentUser && (
+                <button
+                  onClick={() => openAuthForRole('buyer')}
+                  className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all text-xs"
+                >
+                  <UserPlus size={14} /> {language === 'es' ? 'Registrarme como Comprador' : 'Register as Buyer'}
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {marketplaceBatches.map(batch => {
+                const farmer = producers.find(f => f.id === batch.farmerId);
+                const altClass = getAltitudeClassification(farmer?.altitude || 1350);
+
+                return (
+                  <div key={batch.id} className={`rounded-2xl shadow-sm border overflow-hidden flex flex-col group transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+                    <div className="h-36 bg-stone-900 relative overflow-hidden">
+                      <img 
+                        src={batch.batchImage || farmer?.farmImage || "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&q=80&w=800"} 
+                        alt={batch.variety} 
+                        onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&q=80&w=800"; }}
+                        className="w-full h-full object-cover opacity-75 group-hover:scale-105 transition-transform duration-500" 
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-transparent to-transparent flex items-end justify-between p-4">
+                        <span className="text-white font-mono text-xs font-bold drop-shadow-md">{batch.code}</span>
+                        <span className="bg-white/95 text-stone-950 text-xs font-black px-2.5 py-0.5 rounded-lg shadow">
+                          {batch.score} SCA
+                        </span>
+                      </div>
                     </div>
-                  ))}
-                  {inventoryData.filter(i => i.stock <= 5).length === 0 && <p className="text-slate-400 text-sm italic text-center py-10">Todo en orden.</p>}
+
+                    <div className="p-5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <h4 className="font-extrabold text-base text-stone-900 dark:text-white leading-tight">
+                            {batch.variety}
+                          </h4>
+                          <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                            {batch.process}
+                          </span>
+                        </div>
+                        <p className="text-xs text-stone-500 flex items-center gap-1 font-medium">
+                          <Leaf size={12} className="text-emerald-600" /> {farmer?.farmName || 'Finca'} • {farmer?.name || 'Productor'}
+                        </p>
+                        
+                        <div className="flex items-center gap-2 mt-2 text-xs">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${altClass.color}`}>
+                            {farmer?.altitude || 1350} msnm
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                          {batch.tastingNotes?.map((note, i) => (
+                            <span key={i} className="px-2 py-0.5 text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200/60 rounded-md">
+                              {note}
+                            </span>
+                          ))}
+                        </div>
+
+                        <div className={`mt-4 p-3 rounded-xl border flex items-center justify-between ${isDark ? 'bg-stone-800/50 border-stone-800' : 'bg-emerald-50/40 border-emerald-100'}`}>
+                          <div>
+                            <p className="text-[10px] uppercase font-bold text-stone-400">{t.priceCol}</p>
+                            <p className="text-lg font-black text-emerald-600 font-mono">
+                              {formatPrice(batch.priceUSD || 9.50, currency)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] uppercase font-bold text-stone-400">{t.volumeCol}</p>
+                            <p className="text-sm font-bold text-stone-800 dark:text-stone-200">{batch.weight} Kg ({(batch.weight/KG_PER_QUINTAL).toFixed(1)} qq)</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center gap-2">
+                        <button 
+                          onClick={() => viewTraceability(batch)} 
+                          className={`p-2.5 rounded-xl border transition-colors ${isDark ? 'border-stone-700 text-stone-300' : 'border-stone-200 text-stone-600'}`}
+                          title={t.navTraceability}
+                        >
+                          <QrCode size={16} />
+                        </button>
+                        <button 
+                          onClick={() => openInquiryForBatch(batch)} 
+                          className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                        >
+                          <Send size={14} /> {t.requestSample}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 1.1 NY STOCK EXCHANGE MONITOR */}
+        {activeTab === 'nyExchange' && (
+          <NYCoffeeExchangeView isDark={isDark} currency={currency} />
+        )}
+
+        {/* 2. PRODUCER FINANCIAL DASHBOARD */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              <MetricCard isDark={isDark} title={t.totalVolume} value={`${totalKg.toLocaleString()} Kg`} subtitle={`${totalQuintales} Quintales Oro`} icon={Package} />
+              <MetricCard isDark={isDark} title={t.netProfit} value={formatPrice(totalNetProfitUSD, currency)} subtitle="Ganancia retenida en finca" badgeText="Utilidad Directa" icon={CircleDollarSign} />
+              <MetricCard isDark={isDark} title={t.valuePremium} value={`+${formatPrice(totalRealValuePremiumUSD, currency)}`} subtitle="Por encima del precio NY" icon={TrendingUp} />
+              <MetricCard isDark={isDark} title={t.avgScore} value={avgScore} subtitle="Puntaje Promedio SCA" icon={Award} />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className={`p-6 rounded-2xl border ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-100/60'}`}>
+                <h3 className="text-base font-bold mb-4 flex items-center gap-2 text-stone-900 dark:text-white">
+                  <Droplet className="text-emerald-500" size={18}/> {t.processVolume}
+                </h3>
+                <div className="h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={processData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#333' : '#e2e8f0'} />
+                      <XAxis dataKey="name" tick={{fill: isDark ? '#a8a29e' : '#57534e', fontSize: 12}} />
+                      <YAxis tick={{fill: isDark ? '#a8a29e' : '#57534e', fontSize: 12}} />
+                      <Tooltip />
+                      <Bar dataKey="value" name="Kg" fill="#059669" radius={[6, 6, 0, 0]}>
+                        {processData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className={`p-6 rounded-2xl border ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-100/60'}`}>
+                <h3 className="text-base font-bold mb-4 flex items-center gap-2 text-stone-900 dark:text-white">
+                  <BadgePercent className="text-emerald-600" size={18}/> {t.profitabilityDist} ({currency})
+                </h3>
+                <div className="h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={profitByVarietyData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} dataKey="value">
+                        {profitByVarietyData.map((_, index) => <Cell key={`cell-profit-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip />
+                      <Legend verticalAlign="bottom" height={36} />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {activeTab === 'inventory' && (
-          <div className={`rounded-2xl shadow-sm border flex flex-col h-[calc(100vh-200px)] animate-in fade-in duration-500 overflow-hidden ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
-            <div className={`p-4 border-b flex flex-col md:flex-row gap-4 items-center justify-between ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}>
-              <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto flex-1">
-                 <div className="relative w-full md:w-96"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder="Buscar..." className={`w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white' : 'bg-slate-50 border-slate-200'}`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
-                <div className="flex items-center gap-2 w-full md:w-auto"><Filter size={18} className="text-slate-400" /><select className={`border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full md:w-auto transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white' : 'bg-slate-50 border-slate-200'}`} value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>{availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
+        {/* 3. BATCH MANAGEMENT */}
+        {activeTab === 'batches' && (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className={`p-4 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-4 ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-100/60'}`}>
+              <div className="relative flex-1 max-w-sm">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                <input 
+                  type="text" 
+                  placeholder={t.searchLotPlaceholder} 
+                  value={batchSearch}
+                  onChange={(e) => setBatchSearch(e.target.value)}
+                  className={`w-full pl-10 pr-4 py-2 text-sm rounded-xl border ${isDark ? 'bg-stone-800 border-stone-700 text-white' : 'bg-stone-50 border-stone-200 text-stone-900'}`}
+                />
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => exportToCSV(filteredData, 'inventario')} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium shadow-sm transition-colors ${isDarkMode ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Download size={20} /> <span className="hidden sm:inline">Exportar</span></button>
-                {isAdmin && <button onClick={handleOpenCreateModal} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-all transform hover:scale-105"><Plus size={20} /> <span className="hidden sm:inline">Nuevo</span></button>}
-              </div>
-            </div>
-            
-            <div className={`px-4 py-2 border-b flex gap-2 overflow-x-auto ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50/50 border-slate-100'}`}>
-               <button onClick={() => setStatusFilter('all')} className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-2 transition-colors ${statusFilter === 'all' ? (isDarkMode ? 'bg-slate-200 text-slate-900 border-slate-200' : 'bg-slate-800 text-white border-slate-800') : (isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-white text-slate-600 border-slate-200')}`}><ListFilter size={14}/> Todos ({inventoryData.length})</button>
-               <button onClick={() => setStatusFilter('low')} className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-2 transition-colors ${statusFilter === 'low' ? (isDarkMode ? 'bg-amber-900/50 text-amber-400 border-amber-700' : 'bg-amber-100 text-amber-800 border-amber-200 ring-1 ring-amber-300') : (isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-white text-slate-600 border-slate-200')}`}><AlertTriangle size={14} className={statusFilter === 'low' ? 'text-amber-500' : 'text-slate-400'}/> Stock Bajo ({inventoryData.filter(i => i.stock <= 5 && i.stock > 0).length})</button>
-               <button onClick={() => setStatusFilter('out')} className={`px-3 py-1.5 rounded-full text-xs font-medium border flex items-center gap-2 transition-colors ${statusFilter === 'out' ? (isDarkMode ? 'bg-red-900/50 text-red-400 border-red-700' : 'bg-red-100 text-red-800 border-red-200 ring-1 ring-red-300') : (isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-white text-slate-600 border-slate-200')}`}><AlertCircle size={14} className={statusFilter === 'out' ? 'text-red-500' : 'text-slate-400'}/> Agotados ({inventoryData.filter(i => i.stock <= 0).length})</button>
+              <button 
+                onClick={() => { setEditingBatch(null); setIsBatchModalOpen(true); }} 
+                className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-sm font-semibold transition-all"
+              >
+                <Plus size={18} /> {t.registerLot}
+              </button>
             </div>
 
-            <div className="overflow-auto flex-1">
-              <table className={`w-full text-left border-collapse ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
-                  <tr>
-                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700">Código</th>
-                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700">Material</th>
-                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 hidden md:table-cell">Categoría</th>
-                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 hidden md:table-cell">Unidad</th>
-                    {/* COLUMNA UBICACION ELIMINADA */}
-                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-right">Precio Unit.</th>
-                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-right text-emerald-600">Costo + IVA</th>
-                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-right w-32">Stock</th>
-                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-center">Estado</th>
-                    <th className="p-4 text-xs font-bold uppercase border-b border-slate-200 dark:border-slate-700 text-center">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className={`divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
-                  {filteredData.map((item, idx) => (
-                    <tr key={idx} className={`group transition-colors ${isDarkMode ? 'hover:bg-slate-700/30' : 'hover:bg-blue-50/30'}`}>
-                      <td className="p-4 text-sm font-mono opacity-70">{item.codigo}</td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${isDarkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-500'}`}>
-                             {item.material.charAt(0)}
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold">{item.material}</p>
-                            <p className="text-[10px] opacity-60 md:hidden">{item.unidad}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4 text-sm hidden md:table-cell"><span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: isDarkMode ? stringToDarkColor(item.categoria) : stringToColor(item.categoria), color: isDarkMode ? '#ddd' : '#333' }}>{item.categoria}</span></td>
-                      <td className="p-4 text-xs font-medium opacity-70 hidden md:table-cell">{item.unidad}</td>
-                      {/* CELDA UBICACION ELIMINADA */}
-                      <td className="p-4 text-sm text-right opacity-70">C${(item.costo || 0).toFixed(2)}</td>
-                      <td className="p-4 text-sm text-right font-bold text-emerald-600">C${((item.costo||0)*(item.aplicaIVA?1.15:1)).toFixed(2)}</td>
-                      <td className="p-4 text-right">
-                         <span className={`text-sm font-bold ${item.stock <= 5 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-400'}`}>{item.stock}</span>
-                      </td>
-                      <td className="p-4 text-center">
-                        {item.stock <= 0 ? <Badge type="danger">Agotado</Badge> : item.stock <= 5 ? <Badge type="warning">Bajo</Badge> : <Badge type="success">En Stock</Badge>}
-                      </td>
-                      <td className="p-4 text-center">
-                        <div className="flex justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                           <button onClick={() => handleOpenProductHistory(item)} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-slate-600 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`} title="Ver Historial"><History size={18}/></button>
-                           {isAdmin && (
-                            <>
-                              <button onClick={() => handleOpenStockModal(item)} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-blue-900/30 text-blue-400' : 'hover:bg-blue-50 text-blue-600'}`}><PlusCircle size={18}/></button>
-                              <button onClick={() => handleOpenEditModal(item)} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-amber-900/30 text-amber-400' : 'hover:bg-amber-50 text-amber-600'}`}><Pencil size={18}/></button>
-                              <button onClick={() => handleDeleteProduct(item)} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-600'}`}><Trash2 size={18}/></button>
-                            </>
-                           )}
-                        </div>
-                      </td>
+            <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead className={`text-xs font-bold uppercase ${isDark ? 'bg-stone-950 text-stone-400' : 'bg-emerald-50/60 text-emerald-900'}`}>
+                    <tr>
+                      <th className="p-4">{t.lotCol}</th>
+                      <th className="p-4">{t.varietyCol}</th>
+                      <th className="p-4 text-right">{t.volumeCol}</th>
+                      <th className="p-4 text-right">{t.priceCol}</th>
+                      <th className="p-4 text-center">{t.scoreCol}</th>
+                      <th className="p-4 text-center">{t.actionsCol}</th>
                     </tr>
-                  ))}
-                  {filteredData.length === 0 && (<tr><td colSpan="8" className="p-10 text-center italic opacity-50">No hay productos que coincidan con el filtro.</td></tr>)}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className={`divide-y text-sm ${isDark ? 'divide-stone-800 text-stone-300' : 'divide-stone-100 text-stone-700'}`}>
+                    {filteredBatches.map(batch => (
+                      <tr key={batch.id} className="hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20">
+                        <td className="p-4 font-mono font-bold text-emerald-600">{batch.code}</td>
+                        <td className="p-4">
+                          <p className="font-semibold">{batch.variety}</p>
+                          <p className="text-xs text-stone-400">{batch.process}</p>
+                        </td>
+                        <td className="p-4 text-right font-semibold">{batch.weight} kg</td>
+                        <td className="p-4 text-right font-mono font-bold text-emerald-600">{formatPrice(batch.priceUSD, currency)}</td>
+                        <td className="p-4 text-center">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300">{batch.score}</span>
+                        </td>
+                        <td className="p-4 text-center">
+                          <div className="flex justify-center gap-1">
+                            <button onClick={() => viewTraceability(batch)} className="p-1.5 text-emerald-600" title="Ver Autenticidad"><QrCode size={18}/></button>
+                            <button onClick={() => { setEditingBatch(batch); setIsBatchModalOpen(true); }} className="p-1.5 text-stone-400 hover:text-emerald-600"><Pencil size={18}/></button>
+                            <button onClick={() => handleDeleteBatch(batch.id)} className="p-1.5 text-stone-400 hover:text-rose-600"><Trash2 size={18}/></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
 
-        {activeTab === 'requisitions' && <RequisitionsView isAdmin={isAdmin} inventoryData={inventoryData} addToast={addToast} isDarkMode={isDarkMode} />}
-
-        {/* --- PASAR PROPS DE ESTADO DE COTIZACION --- */}
-        {activeTab === 'quotations' && <QuotationsView items={quotationItems} setItems={setQuotationItems} inventoryData={inventoryData} addToast={addToast} isDarkMode={isDarkMode} logoUrl={logoUrl} isAdmin={isAdmin} />}
-
-        {activeTab === 'suppliers' && <SuppliersView isAdmin={isAdmin} suppliersData={suppliersData} inventoryData={inventoryData} addToast={addToast} isDarkMode={isDarkMode} priceHistoryData={priceHistoryData} />}
-
-        {activeTab === 'history' && (
-          <div className={`rounded-xl shadow-sm border flex flex-col h-[calc(100vh-200px)] animate-in fade-in duration-500 overflow-hidden ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-100'}`}>
-            <div className={`p-4 border-b flex justify-between items-center ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}>
-              <h3 className={`font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}><History size={20} className="text-emerald-500"/> Historial General</h3>
-              <button onClick={() => exportToCSV(historyData, 'historial')} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium shadow-sm transition-colors ${isDarkMode ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Download size={20} /> Exportar</button>
-            </div>
-            
-            {/* --- CONTROLES DE BUSQUEDA Y FILTRO PARA HISTORIAL --- */}
-            <div className={`p-4 border-b flex flex-col md:flex-row gap-4 items-center justify-between ${isDarkMode ? 'bg-slate-800/30 border-slate-700' : 'bg-slate-50/50 border-slate-100'}`}>
-               <div className="relative w-full md:w-96">
-                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={16}/>
-                 <input 
-                   type="text" 
-                   placeholder="Buscar en historial (material, código, usuario, proveedor)..." 
-                   className={`w-full pl-9 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-slate-300'}`}
-                   value={historySearchTerm}
-                   onChange={(e) => setHistorySearchTerm(e.target.value)}
-                 />
-               </div>
-               <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-                  <button onClick={() => setHistoryFilterType('all')} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap ${historyFilterType === 'all' ? (isDarkMode ? 'bg-slate-200 text-slate-900 border-slate-200' : 'bg-slate-800 text-white border-slate-800') : (isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-white text-slate-600 border-slate-200')}`}>Todas</button>
-                  <button onClick={() => setHistoryFilterType('entry')} className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1 transition-colors whitespace-nowrap ${historyFilterType === 'entry' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 ring-1 ring-emerald-300' : (isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700 hover:text-emerald-400' : 'bg-white text-slate-600 border-slate-200 hover:text-emerald-600')}`}><PlusCircle size={14}/> Entradas</button>
-                  <button onClick={() => setHistoryFilterType('exit')} className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1 transition-colors whitespace-nowrap ${historyFilterType === 'exit' ? 'bg-rose-100 text-rose-800 border-rose-200 ring-1 ring-rose-300' : (isDarkMode ? 'bg-slate-800 text-slate-400 border-slate-700 hover:text-rose-400' : 'bg-white text-slate-600 border-slate-200 hover:text-rose-600')}`}><MinusCircle size={14}/> Salidas</button>
-               </div>
-            </div>
-
-            <div className="overflow-auto flex-1">
-              <table className={`w-full text-left border-collapse ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                <thead className={`sticky top-0 z-10 ${isDarkMode ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
-                  <tr><th className="p-4 border-b border-slate-200 dark:border-slate-700">Fecha</th><th className="p-4 border-b border-slate-200 dark:border-slate-700">Material</th><th className="p-4 border-b border-slate-200 dark:border-slate-700 text-center">Tipo</th><th className="p-4 border-b border-slate-200 dark:border-slate-700 text-right">Cant.</th><th className="p-4 border-b border-slate-200 dark:border-slate-700">Origen / Destino</th><th className="p-4 border-b border-slate-200 dark:border-slate-700 text-right">Usuario</th></tr>
-                </thead>
-                <tbody className={`divide-y ${isDarkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
-                  {filteredHistory.map((log, idx) => (
-                    <tr key={idx} className={`transition-colors ${isDarkMode ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'}`}>
-                      <td className="p-4 text-xs font-mono opacity-70">{log.fecha}</td>
-                      <td className="p-4"><p className="text-sm font-medium">{log.material}</p><p className="text-xs opacity-60">{log.codigo}</p></td>
-                      <td className="p-4 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${log.tipo==='Entrada' ? (isDarkMode ? 'bg-emerald-900/40 text-emerald-400' : 'bg-emerald-100 text-emerald-700') : (isDarkMode ? 'bg-rose-900/40 text-rose-400' : 'bg-rose-100 text-rose-700')}`}>{log.tipo}</span></td>
-                      <td className="p-4 text-sm font-bold text-right">{log.cantidad}</td>
-                      <td className="p-4 text-sm opacity-80"><div className="flex items-center gap-1"><Building2 size={12} className="opacity-50"/> {log.destino || '-'}</div></td>
-                      <td className="p-4 text-xs text-right italic opacity-60">{log.usuario || 'Admin'}</td>
-                    </tr>
-                  ))}
-                  {filteredHistory.length === 0 && (
-                    <tr><td colSpan="6" className="p-10 text-center italic opacity-50">No se encontraron registros en el historial.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+        {/* 4. COST CALCULATOR */}
+        {activeTab === 'costCalc' && (
+          <ProducerCostCalculator isDark={isDark} currency={currency} currentUser={currentUser} />
         )}
 
-        {/* NUEVA VISTA: SETTINGS (SOLO ADMIN) */}
-        {activeTab === 'settings' && isAdmin && (
-          <SettingsView 
-            categories={categoriesList.map(c => c.name)} 
-            units={unitsList.map(u => u.name)}
-            workers={workersList.map(w => w.name)}
-            onAddCategory={(name) => push(ref(db, CATEGORIES_PATH), { name })}
-            onDeleteCategory={(name) => {
-              const item = categoriesList.find(c => c.name === name);
-              if (item) remove(ref(db, `${CATEGORIES_PATH}/${item.id}`));
-            }}
-            onAddUnit={(name) => push(ref(db, UNITS_PATH), { name })}
-            onDeleteUnit={(name) => {
-              const item = unitsList.find(u => u.name === name);
-              if (item) remove(ref(db, `${UNITS_PATH}/${item.id}`));
-            }}
-            onAddWorker={handleAddWorker}
-            onDeleteWorker={handleDeleteWorker}
-            isDarkMode={isDarkMode}
+        {/* 5. TRAINING */}
+        {activeTab === 'training' && (
+          <StateTrainingView 
+            currentUser={currentUser} 
+            trainingRequests={trainingRequests} 
+            onRequestTraining={handleRequestTraining} 
+            isDark={isDark} 
           />
         )}
+
+        {/* 6. MY PROFILE */}
+        {activeTab === 'myProfile' && (
+          currentUser?.role === 'producer' ? (
+            <MyFarmProfileView currentUser={currentUser} onUpdateProfile={handleUpdateProfile} isDark={isDark} currency={currency} />
+          ) : (
+            <MyBuyerProfileView currentUser={currentUser} onUpdateProfile={handleUpdateProfile} isDark={isDark} currency={currency} />
+          )
+        )}
+
+        {/* 7. CUPPING LAB */}
+        {activeTab === 'cuppingLab' && (
+          <DigitalCuppingLab batches={batches} isDark={isDark} />
+        )}
+
+        {/* 8. FOB EXPORT CALC */}
+        {activeTab === 'exportCalc' && (
+          <BuyerFreightCalculator isDark={isDark} currency={currency} />
+        )}
+
+        {/* 9. TERROIRS */}
+        {activeTab === 'terroirs' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-300">
+            {NICA_TERROIRS.map((terroir) => (
+              <div key={terroir.id} className={`rounded-2xl border overflow-hidden shadow-sm ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+                <div className="h-44 relative bg-stone-950">
+                  <img 
+                    src={terroir.image} 
+                    alt={terroir.name} 
+                    onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1524350876685-274059332603?auto=format&fit=crop&q=80&w=800"; }}
+                    className="w-full h-full object-cover opacity-75 hover:scale-105 transition-transform duration-500" 
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/40 to-transparent flex flex-col justify-end p-4 text-white">
+                    <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">{terroir.department}</span>
+                    <h4 className="text-lg font-black leading-tight">{terroir.name}</h4>
+                  </div>
+                </div>
+                <div className="p-5 space-y-3">
+                  <p className="text-xs font-semibold text-emerald-600">{terroir.altitudeRange} • Cosecha: {terroir.harvestMonths}</p>
+                  <p className="text-xs italic text-stone-600 dark:text-stone-300">"{terroir.cupProfile}"</p>
+                  <p className="text-xs font-bold text-stone-800 dark:text-stone-200">{terroir.cupOfExcellenceRecord}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 10. INSTITUTIONAL ECOSYSTEM */}
+        {activeTab === 'institutional' && (
+          <InstitutionalEcosystemView isDark={isDark} />
+        )}
+
+        {/* 11. INQUIRIES & ORDERS */}
+        {(activeTab === 'buyerOrders' || activeTab === 'producerOrders') && (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className={`p-5 rounded-2xl border ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-100/70'}`}>
+              <h3 className="font-bold text-lg text-stone-900 dark:text-white mb-4">Negociaciones Comerciales & Pre-Contratos</h3>
+              <div className="space-y-3">
+                {inquiries.map((req) => (
+                  <div key={req.id} className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
+                    <div>
+                      <p className="font-bold text-sm">{req.batchCode} — {req.batchVariety}</p>
+                      <p className="text-xs text-stone-500">{req.roasteryName} ({req.buyerName}) • {req.country}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300">{req.status}</span>
+                      <p className="font-mono font-bold text-emerald-600 mt-1">{formatPrice(req.totalUSD, currency)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 12. FARMERS DIRECTORY */}
+        {activeTab === 'farmers' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-300">
+            {producers.map(farmer => (
+              <div key={farmer.id} className={`rounded-2xl border overflow-hidden p-6 ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'}`}>
+                <div className="flex items-center gap-3 mb-4">
+                  <img src={farmer.avatar} alt={farmer.name} className="w-12 h-12 rounded-xl object-cover" />
+                  <div>
+                    <h4 className="font-bold text-stone-900 dark:text-white">{farmer.name}</h4>
+                    <p className="text-xs text-emerald-600 font-semibold">{farmer.farmName}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-stone-500 mb-2">{farmer.department} • {farmer.altitude} msnm ({farmer.manzanasCultivadas} Mz)</p>
+                <div className={`p-3 rounded-xl border text-xs space-y-1 ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-100'}`}>
+                  <div className="flex justify-between"><span className="text-stone-400">Variedades:</span><span className="font-bold">{farmer.varieties}</span></div>
+                  <div className="flex justify-between"><span className="text-stone-400">Precio Objetivo:</span><span className="font-bold text-emerald-600">${farmer.targetPricePerKgUSD}/Kg</span></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 13. TRACEABILITY VIEW */}
+        {activeTab === 'traceability' && selectedTraceabilityBatch && (() => {
+          const batch = selectedTraceabilityBatch;
+          const farmer = producers.find(f => f.id === batch.farmerId) || producers[0];
+          return (
+            <div className={`max-w-3xl mx-auto rounded-3xl border overflow-hidden p-6 md:p-8 space-y-6 ${isDark ? 'bg-stone-900 border-stone-800' : 'bg-white border-emerald-100/70 shadow-xl'}`}>
+              <div className="border-b pb-4">
+                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">Certificado de Autenticidad: {batch.code}</span>
+                <h2 className="text-2xl font-black mt-2">{batch.variety} ({batch.process}) — {batch.score} SCA</h2>
+                <p className="text-xs text-stone-500">{farmer.farmName} • {farmer.department}, Nicaragua</p>
+              </div>
+
+              <div className="space-y-4 text-xs">
+                <div className="flex justify-between border-b pb-2">
+                  <span className="text-stone-400">Productor / Dueño:</span>
+                  <span className="font-bold">{farmer.name}</span>
+                </div>
+                <div className="flex justify-between border-b pb-2">
+                  <span className="text-stone-400">Altitud & Malla:</span>
+                  <span className="font-bold">{farmer.altitude} msnm • {batch.screenSize || '18+'}</span>
+                </div>
+                <div className="flex justify-between border-b pb-2">
+                  <span className="text-stone-400">Coordenadas GPS de Finca:</span>
+                  <span className="font-mono text-emerald-600">{farmer.lat}, {farmer.lng}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-stone-400">Modalidad Comercial:</span>
+                  <span className="font-bold text-emerald-600">Venta Directa 100% Retenida en Finca</span>
+                </div>
+              </div>
+
+              <div className={`p-4 rounded-2xl border ${isDark ? 'bg-stone-800/40 border-stone-800' : 'bg-stone-50 border-stone-200'}`}>
+                <p className="text-xs font-medium text-stone-700 dark:text-stone-300 leading-relaxed">
+                  Lote segregado y procesado de forma artesanal. La transacción directa garantiza que el precio pagado por el comprador se liquida íntegramente al caficultor.
+                </p>
+              </div>
+            </div>
+          );
+        })()}
+
       </main>
 
-      {/* TOASTS & MODALES */}
+      {/* MODALS */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
-      <AdminLoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={() => setIsAdmin(true)} addToast={addToast} isDarkMode={isDarkMode} />
-      <ProfileSetupModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} onSave={handleSaveProfile} isDarkMode={isDarkMode} />
-      <ConnectedUsersModal isOpen={isConnectedUsersModalOpen} onClose={() => setIsConnectedUsersModalOpen(false)} users={onlineUsersList} currentUserId={user?.uid} isDarkMode={isDarkMode} />
-      <MovementModal isOpen={isStockModalOpen} onClose={() => setIsStockModalOpen(false)} item={selectedItem} onSave={handleUpdateStock} isDarkMode={isDarkMode} suppliers={suppliersData} workers={workersList} />
-      {/* Pasar categorías y unidades DINÁMICAS al formulario */}
-      <ProductFormModal 
-        isOpen={isFormModalOpen} 
-        onClose={() => setIsFormModalOpen(false)} 
-        onSave={handleSaveProduct} 
-        categories={availableCategories.filter(c => c !== 'Todas')} // Pasamos la lista COMBINADA (sin "Todas")
-        units={unitsList.map(u => u.name)}
-        productToEdit={editingItem} 
-        isDarkMode={isDarkMode}
+      
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        isDark={isDark}
+        onLoginSuccess={handleLoginSuccess}
+        portalRole={authPortalRole}
       />
-      <ProductHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} product={historyItem} history={historyData} isDarkMode={isDarkMode} />
+
+      <BatchFormModal 
+        isOpen={isBatchModalOpen} 
+        onClose={() => setIsBatchModalOpen(false)} 
+        onSave={handleSaveBatch} 
+        batchToEdit={editingBatch} 
+        producers={producers}
+        currentUser={currentUser}
+        isDark={isDark} 
+      />
+
+      <BuyerInquiryModal
+        isOpen={isInquiryModalOpen}
+        onClose={() => setIsInquiryModalOpen(false)}
+        batch={selectedBatchForInquiry}
+        farmer={producers.find(f => f.id === selectedBatchForInquiry?.farmerId)}
+        currentUser={currentUser}
+        currency={currency}
+        isDark={isDark}
+        onSubmit={handleCreateInquiry}
+      />
     </div>
   );
 }
