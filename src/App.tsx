@@ -79,6 +79,64 @@ import {
   Legend
 } from 'recharts';
 
+// Official Brand Logo: 1:1 Vector Replica matching the brand emblem
+const NicaTradeLogo = ({ size = 36, className = "" }) => (
+  <svg 
+    width={size} 
+    height={size} 
+    viewBox="0 0 200 200" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
+    className={`shrink-0 drop-shadow-md ${className}`}
+  >
+    {/* Outer Circular Ring with opening for the ascending arrow */}
+    <path 
+      d="M 148 48 A 78 78 0 1 0 162 138" 
+      stroke="#181938" 
+      strokeWidth="11" 
+      strokeLinecap="round" 
+      className="dark:stroke-slate-200 stroke-[#181938]"
+    />
+
+    {/* Left Violet Globe / Coffee Bean Lobe */}
+    <path 
+      d="M 94 46 C 66 46 54 66 54 98 C 54 128 66 150 94 150 C 96 130 96 68 94 46 Z" 
+      fill="#9D6CE5" 
+    />
+    {/* Left Continents - Silhouette Americas */}
+    <path 
+      d="M 64 68 Q 76 58 84 62 Q 90 80 76 92 Q 62 96 70 118 Q 84 124 86 136 Q 70 136 60 114 Q 56 88 64 68 Z" 
+      fill="#FFFFFF" 
+    />
+
+    {/* Right Violet Globe / Coffee Bean Lobe */}
+    <path 
+      d="M 106 46 C 134 46 146 66 146 98 C 146 128 134 150 106 150 C 104 130 104 68 106 46 Z" 
+      fill="#8E55E0" 
+    />
+    {/* Right Continents - Silhouette Eurasia & Africa */}
+    <path 
+      d="M 110 58 Q 130 58 134 74 Q 122 86 114 82 Q 126 96 138 104 Q 134 126 118 136 Q 110 124 112 104 Q 106 80 110 58 Z" 
+      fill="#FFFFFF" 
+    />
+
+    {/* Dynamic Ascending Export Arrow (Sweeping across the bean from bottom left to top right) */}
+    <path 
+      d="M 94 150 C 74 150 70 130 76 118 C 84 104 112 96 146 80 L 172 68" 
+      stroke="#181938" 
+      strokeWidth="11" 
+      strokeLinecap="round" 
+      className="dark:stroke-cyan-400 stroke-[#181938]"
+    />
+    {/* Arrowhead */}
+    <polygon 
+      points="178,44 174,80 148,62" 
+      fill="#181938" 
+      className="dark:fill-cyan-400 fill-[#181938]"
+    />
+  </svg>
+);
+
 // Global touch & mobile safety styles
 const MOBILE_SAFE_STYLES = `
   * {
@@ -1854,8 +1912,8 @@ export default function CoffeeTraceabilityApp() {
             <Menu size={20} />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-600/30">
-              <Coffee size={18} />
+            <div className="w-8 h-8 rounded-xl bg-slate-950 border border-indigo-900/60 flex items-center justify-center p-0.5 shadow-md shadow-indigo-600/20">
+              <NicaTradeLogo size={28} />
             </div>
             <h1 className="text-base font-black tracking-tight leading-none text-slate-900 dark:text-white">
               Nica<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400">Trade</span>
@@ -1894,8 +1952,8 @@ export default function CoffeeTraceabilityApp() {
           >
             <div className="flex items-center justify-between pb-4 border-b border-indigo-950">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-600/30">
-                  <Coffee size={18} />
+                <div className="w-9 h-9 rounded-xl bg-slate-950 border border-indigo-900/60 flex items-center justify-center p-0.5 shadow-md shadow-indigo-600/20">
+                  <NicaTradeLogo size={32} />
                 </div>
                 <div>
                   <h2 className="text-base font-black leading-tight">Nica<span className="text-cyan-400">Trade</span></h2>
@@ -1982,8 +2040,8 @@ export default function CoffeeTraceabilityApp() {
       <aside className={`hidden md:flex w-64 transition-all duration-300 flex-col fixed h-full z-20 border-r shadow-2xl ${isDark ? 'bg-slate-900/95 border-indigo-950 backdrop-blur-xl' : 'bg-white border-indigo-100'}`}>
         <div className="p-5 border-b border-indigo-950/80 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
-              <Coffee size={22} />
+            <div className="w-11 h-11 rounded-2xl bg-slate-950/80 border border-indigo-800/60 flex items-center justify-center p-1 shadow-lg shadow-indigo-600/25">
+              <NicaTradeLogo size={36} />
             </div>
             <div>
               <h1 className={`text-base font-black tracking-tight leading-none ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -2472,6 +2530,12 @@ export default function CoffeeTraceabilityApp() {
                           <span className="text-slate-400 text-[10px] uppercase font-bold block">Variedades:</span>
                           <span className="font-bold text-slate-200 text-xs block truncate">{farmer.varieties}</span>
                         </div>
+                        {farmer.farmingType && (
+                          <div className="pt-1 border-t border-indigo-950/60 flex items-center gap-1">
+                            <Leaf size={11} className="text-cyan-400 shrink-0" />
+                            <span className="text-[10px] text-cyan-300 font-semibold truncate">{farmer.farmingType}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between items-center pt-1 border-t border-indigo-950/60">
                           <span className="text-slate-400 text-[10px] uppercase font-bold">Precio Meta:</span>
                           <span className="font-black text-cyan-400 font-mono text-sm">${farmer.targetPricePerKgUSD} / Kg</span>
