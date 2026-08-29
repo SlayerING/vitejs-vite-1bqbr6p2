@@ -79,6 +79,17 @@ import {
   Legend
 } from 'recharts';
 
+// Global touch & mobile safety styles
+const MOBILE_SAFE_STYLES = `
+  * {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  input, textarea, select {
+    font-size: 16px !important; /* Prevents auto-zoom on iOS Safari */
+  }
+`;
+
 const KG_PER_QUINTAL = 46;
 const KG_PER_EXPORT_BAG = 69;
 const NY_BENCHMARK_PRICE_USD_KG = 4.20;
@@ -574,15 +585,31 @@ const MetricCard = ({ title, value, subtitle, badgeText, icon: Icon, isDark }) =
 );
 
 const ModalWrapper = ({ children, isDark, onClose, title, maxWidth = 'max-w-lg' }) => (
-  <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md sm:p-4 overflow-y-auto">
-    <div className={`rounded-t-3xl sm:rounded-3xl shadow-2xl w-full ${maxWidth} max-h-[92vh] sm:max-h-[88vh] flex flex-col overflow-hidden border my-0 sm:my-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 ${isDark ? 'bg-slate-900 border-indigo-900/60 text-white shadow-indigo-950/50' : 'bg-white border-indigo-100 text-slate-800'}`}>
+  <div 
+    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md sm:p-4 overflow-y-auto"
+    onClick={onClose}
+    onTouchEnd={(e) => {
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    }}
+  >
+    <div 
+      className={`rounded-t-3xl sm:rounded-3xl shadow-2xl w-full ${maxWidth} max-h-[92vh] sm:max-h-[88vh] flex flex-col overflow-hidden border my-0 sm:my-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 ${isDark ? 'bg-slate-900 border-indigo-900/60 text-white shadow-indigo-950/50' : 'bg-white border-indigo-100 text-slate-800'}`}
+      onClick={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+    >
       <div className={`p-4 px-6 border-b flex justify-between items-center shrink-0 ${isDark ? 'border-indigo-950 bg-slate-950/80' : 'border-indigo-50 bg-indigo-50/40'}`}>
         <h3 className="font-extrabold text-sm md:text-base flex items-center gap-2 text-slate-900 dark:text-white truncate pr-2">{title}</h3>
-        <button onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0">
+        <button 
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onClose(); }} 
+          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0 touch-manipulation"
+        >
           <XCircle size={22} />
         </button>
       </div>
-      <div className="overflow-y-auto flex-1">
+      <div className="overflow-y-auto flex-1 overscroll-contain">
         {children}
       </div>
     </div>
@@ -2401,6 +2428,7 @@ export default function CoffeeTraceabilityApp() {
         {/* 7. FARMERS DIRECTORY (FULL 8 PRODUCERS) */}
         {activeTab === 'farmers' && (
           <div className="space-y-6 animate-in fade-in duration-300">
+            <style>{MOBILE_SAFE_STYLES}</style>
             <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 ${isDark ? 'bg-slate-900/90 border-indigo-950' : 'bg-white border-indigo-100'}`}>
               <div>
                 <h3 className="font-extrabold text-base text-slate-900 dark:text-white">Directorio Nacional de Productores ({producers.length} Fincas Registradas)</h3>
@@ -2408,8 +2436,9 @@ export default function CoffeeTraceabilityApp() {
               </div>
               {!currentUser && authPortalRole === 'producer' && (
                 <button
+                  type="button"
                   onClick={() => setIsProducerRegisterOpen(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5"
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 touch-manipulation"
                 >
                   <Building2 size={14} /> Registrar Mi Finca
                 </button>
@@ -2457,14 +2486,17 @@ export default function CoffeeTraceabilityApp() {
                     </div>
 
                     <div className="mt-3 pt-3 border-t border-indigo-950/80 flex items-center justify-between text-xs">
-                      <a 
-                        href={`https://maps.google.com/?q=${farmer.lat},${farmer.lng}`} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="text-cyan-400 font-bold hover:underline flex items-center gap-1 text-[11px]"
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const targetBatch = batches.find(b => b.farmerId === farmer.id) || batches[0];
+                          viewTraceability(targetBatch);
+                        }}
+                        className="text-cyan-400 font-bold hover:underline flex items-center gap-1 text-[11px] touch-manipulation"
                       >
-                        <MapPin size={12} /> Ver en Maps
-                      </a>
+                        <MapPin size={12} /> Ver Ficha Satelital
+                      </button>
                       <span className="text-[10px] text-purple-300 font-bold font-mono">
                         ~{farmer.estimatedHarvestQuintales} qq Oro
                       </span>
@@ -2541,32 +2573,36 @@ export default function CoffeeTraceabilityApp() {
       {/* MOBILE BOTTOM NAVIGATION BAR */}
       <div className={`md:hidden fixed bottom-0 left-0 right-0 z-40 border-t py-1.5 px-3 flex justify-around items-center backdrop-blur-xl ${isDark ? 'bg-slate-900/95 border-indigo-950 text-slate-400' : 'bg-white/95 border-indigo-100 text-slate-600'}`}>
         <button 
-          onClick={() => setActiveTab('marketplace')}
-          className={`flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all ${activeTab === 'marketplace' ? 'text-cyan-400 font-bold' : ''}`}
+          type="button"
+          onClick={(e) => { e.preventDefault(); setActiveTab('marketplace'); }}
+          className={`flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all touch-manipulation ${activeTab === 'marketplace' ? 'text-cyan-400 font-bold' : ''}`}
         >
           <ShoppingCart size={18} />
           <span className="text-[10px]">Mercado</span>
         </button>
 
         <button 
-          onClick={() => setActiveTab('nyExchange')}
-          className={`flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all ${activeTab === 'nyExchange' ? 'text-cyan-400 font-bold' : ''}`}
+          type="button"
+          onClick={(e) => { e.preventDefault(); setActiveTab('nyExchange'); }}
+          className={`flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all touch-manipulation ${activeTab === 'nyExchange' ? 'text-cyan-400 font-bold' : ''}`}
         >
           <TrendingUp size={18} />
           <span className="text-[10px]">Bolsa NY</span>
         </button>
 
         <button 
-          onClick={() => setActiveTab('farmers')}
-          className={`flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all ${activeTab === 'farmers' ? 'text-cyan-400 font-bold' : ''}`}
+          type="button"
+          onClick={(e) => { e.preventDefault(); setActiveTab('farmers'); }}
+          className={`flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all touch-manipulation ${activeTab === 'farmers' ? 'text-cyan-400 font-bold' : ''}`}
         >
           <Users size={18} />
           <span className="text-[10px]">Directorio</span>
         </button>
 
         <button 
-          onClick={() => currentUser ? setActiveTab('dashboard') : openAuthForRole(authPortalRole)}
-          className={`flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all ${activeTab === 'dashboard' ? 'text-cyan-400 font-bold' : ''}`}
+          type="button"
+          onClick={(e) => { e.preventDefault(); currentUser ? setActiveTab('dashboard') : openAuthForRole(authPortalRole); }}
+          className={`flex flex-col items-center gap-0.5 p-1.5 rounded-xl transition-all touch-manipulation ${activeTab === 'dashboard' ? 'text-cyan-400 font-bold' : ''}`}
         >
           <User size={18} />
           <span className="text-[10px]">{currentUser ? 'Panel' : 'Entrar'}</span>
