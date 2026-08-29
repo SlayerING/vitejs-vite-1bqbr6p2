@@ -342,28 +342,6 @@ const INITIAL_PRODUCERS = [
     lng: -85.7533,
     published: true,
     avatar: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=400&q=80",
-    farmImage: "https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&w=1000"
-  },
-  {
-    id: "prod-7",
-    name: "Don Silvio Tercero Gómez",
-    email: "silvio.tercero@buenavista.ni",
-    farmName: "Finca Buena Vista de Río Coco",
-    department: "Madriz",
-    municipality: "San Juan de Río Coco",
-    altitude: 1380,
-    manzanasCultivadas: 16.0,
-    estimatedHarvestQuintales: 275,
-    costOfProductionPerQqUSD: 121.00,
-    targetPricePerKgUSD: 9.50,
-    netProfitEstimatedUSD: 44000,
-    varieties: "Bourbon Rosado",
-    certifications: "Comercio Directo Orgánico, SHG Altura",
-    organolepticNotes: "",
-    lat: 13.5412,
-    lng: -86.1667,
-    published: true,
-    avatar: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80",
     farmImage: "https://images.unsplash.com/photo-1524350876685-274059332603?auto=format&fit=crop&w=1000"
   },
   {
@@ -431,7 +409,7 @@ const INITIAL_BATCHES = [
     status: "Disponible en Beneficio Seco",
     harvestDate: "2026-03-20",
     tastingNotes: ["Frutos Rojos", "Licor de Café", "Caramelo"],
-    batchImage: "https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&w=800"
+    batchImage: "https://images.unsplash.com/photo-1447933601403-0c6688de566e?auto=format&fit=crop&w=800&q=80"
   },
   {
     id: "b4",
@@ -597,7 +575,7 @@ const DEMO_USERS = [
     country: "Alemania",
     city: "Berlín",
     preferredCurrency: "EUR",
-    avatar: "https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&w=400&q=80"
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80"
   }
 ];
 
@@ -766,7 +744,7 @@ const ProducerRegistrationModal = ({ isOpen, onClose, onRegisterProducer, isDark
       lng: Number(formData.lng),
       published: true,
       avatar: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=400&q=80",
-      farmImage: "https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&w=1000"
+      farmImage: "https://images.unsplash.com/photo-1524350876685-274059332603?auto=format&fit=crop&w=1000"
     };
 
     onRegisterProducer(newProducer);
